@@ -1,1 +1,1 @@
-test pripojenia gitu
+test pripojenia GitHab

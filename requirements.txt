@@ -1,0 +1,9 @@
+# requirements.txt
+fastapi
+uvicorn
+python-multipart
+pydantic
+loguru
+trimesh
+numpy
+pygltflib
