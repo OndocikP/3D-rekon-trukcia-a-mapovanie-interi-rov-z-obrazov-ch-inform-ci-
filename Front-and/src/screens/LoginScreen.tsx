@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Image, Modal, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '../theme/colors';
 import { layout } from '../theme/layout';
 import AppButton from '../components/AppButton';
 import { router } from 'expo-router';
 
+// ✅ COLORS Z PROVIDERU (nie statický colors.ts)
+import { useColors } from '../theme/ColorsProvider';
+
 export default function LoginScreen() {
   const [forgotVisible, setForgotVisible] = useState(false);
   const [email, setEmail] = useState('');
+
+  const { colors } = useColors();
 
   return (
     <LinearGradient
@@ -23,17 +27,17 @@ export default function LoginScreen() {
       />
 
       {/* Card s formulárom */}
-      <View style={styles.card}>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <TextInput
-          placeholder="User name"
-          placeholderTextColor="#888"
-          style={styles.input}
+          placeholder="Username"
+          placeholderTextColor={colors.placeholder}
+          style={[styles.input, { backgroundColor: colors.inputBackground }]}
         />
         <TextInput
           placeholder="Password"
-          placeholderTextColor="#888"
+          placeholderTextColor={colors.placeholder}
           secureTextEntry
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.inputBackground }]}
         />
 
         <View style={styles.buttons}>
@@ -50,7 +54,7 @@ export default function LoginScreen() {
 
         {/* Forgot password link */}
         <Text
-          style={styles.forgot}
+          style={[styles.forgot, { color: colors.textSecondary }]}
           onPress={() => setForgotVisible(true)}
         >
           Forgot password?
@@ -64,14 +68,16 @@ export default function LoginScreen() {
         animationType="fade"
         onRequestClose={() => setForgotVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Forgot password</Text>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalCard, { backgroundColor: colors.modalCard }]}>
+            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
+              Forgot password
+            </Text>
 
             <TextInput
-              placeholder="Gmail"
-              placeholderTextColor="#888"
-              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor={colors.placeholder}
+              style={[styles.input, { backgroundColor: colors.inputBackground }]}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -81,14 +87,13 @@ export default function LoginScreen() {
             <AppButton
               title="Send verification code"
               onPress={() => {
-                // TODO: tu neskôr doplníme reálne odoslanie kódu
                 setForgotVisible(false);
                 router.push('/forgotPassword');
               }}
             />
 
             <Pressable onPress={() => setForgotVisible(false)}>
-              <Text style={styles.modalCancel}>Cancel</Text>
+              <Text style={[styles.forgot, { color: colors.textSecondary }]}>Cancel</Text>
             </Pressable>
           </View>
         </View>
@@ -103,65 +108,67 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: layout.padding,
   },
+
   logoImage: {
     width: '100%',
     maxWidth: 520,
     alignSelf: 'center',
   },
+
   card: {
-    backgroundColor: 'rgba(0,0,0,0.35)',
     borderRadius: 30,
     padding: 25,
     width: '100%',
     maxWidth: 520,
     alignSelf: 'center',
+    borderWidth: 1,
   },
+
   input: {
-    backgroundColor: colors.inputBackground,
     height: layout.inputHeight,
     borderRadius: layout.radius,
     paddingHorizontal: 15,
     marginBottom: 12,
   },
+
   buttons: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 10,
     marginTop: 10,
   },
+
   forgot: {
-    color: colors.textSecondary,
     textDecorationLine: 'underline',
     textAlign: 'center',
     marginTop: 15,
     fontSize: 13,
   },
 
-  // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
   },
+
   modalCard: {
-    backgroundColor: 'rgba(0,0,0,0.85)',
     padding: 25,
     borderRadius: 25,
     width: '85%',
     maxWidth: 520,
   },
+
   modalTitle: {
-    color: colors.textPrimary,
     fontSize: 20,
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: 15,
   },
+
   modalCancel: {
-    color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 15,
     fontSize: 13,
+    textDecorationLine: 'underline',
   },
 });

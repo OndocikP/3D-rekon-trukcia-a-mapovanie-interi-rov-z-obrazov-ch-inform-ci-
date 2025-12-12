@@ -1,14 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
 
-import { colors } from '../src/theme/colors';
 import { layout } from '../src/theme/layout';
+import { useColors } from '../src/theme/ColorsProvider';
 
 type PickedImage = { uri: string };
 
 export default function GenerateScreen() {
+  const { colors } = useColors();
 
   const params = useLocalSearchParams<{
     id?: string;
@@ -35,7 +42,7 @@ export default function GenerateScreen() {
 
   const generateProject = async () => {
     try {
-      // 🔹 TU PRÍDE BACKEND CALL (zatiaľ fake delay)
+      // 🔹 TU PRÍDE BACKEND CALL
       console.log('Generating project:', {
         projectId,
         projectName,
@@ -63,13 +70,20 @@ export default function GenerateScreen() {
       <View style={styles.center}>
         {status === 'loading' && (
           <>
-            <ActivityIndicator size="large" color="#fff" />
-            <Text style={styles.text}>Generating project…</Text>
+            <ActivityIndicator
+              size="large"
+              color={colors.textPrimary}
+            />
+            <Text style={[styles.text, { color: colors.textPrimary }]}>
+              Generating project…
+            </Text>
           </>
         )}
 
         {status === 'error' && (
-          <Text style={styles.text}>Generation failed</Text>
+          <Text style={[styles.text, { color: colors.danger }]}>
+            Generation failed
+          </Text>
         )}
       </View>
     </LinearGradient>
@@ -81,14 +95,15 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: layout.padding,
   },
+
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 16,
   },
+
   text: {
-    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '600',
   },

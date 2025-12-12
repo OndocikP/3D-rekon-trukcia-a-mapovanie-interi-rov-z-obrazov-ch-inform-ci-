@@ -1,18 +1,16 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  Alert,
-} from 'react-native';
+import { View, Text, TextInput, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '../theme/colors';
 import { layout } from '../theme/layout';
 import AppButton from '../components/AppButton';
 import { router } from 'expo-router';
 
+// ✅ COLORS Z PROVIDERU
+import { useColors } from '../theme/ColorsProvider';
+
 export default function RegisterScreen() {
+  const { colors } = useColors();
+
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,27 +18,26 @@ export default function RegisterScreen() {
 
   const handleRegister = () => {
     if (!username || !email || !password || !passwordAgain) {
-      Alert.alert('Chyba', 'Vyplň všetky polia.');
+      Alert.alert('Error', 'Please fill in all fields.');
       return;
     }
 
     if (password !== passwordAgain) {
-      Alert.alert('Chyba', 'Heslá sa nezhodujú.');
+      Alert.alert('Error', 'Passwords do not match.');
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Chyba', 'Heslo musí mať aspoň 6 znakov.');
+      Alert.alert('Error', 'Password must be at least 6 characters.');
       return;
     }
 
-    // Sem neskôr dáme call na backend / API
-    Alert.alert('OK', 'Účet bol vytvorený (zatím len demo).');
-    router.push('/main')
+    Alert.alert('OK', 'Account created (demo).');
+    router.push('/main');
   };
 
   const handleBack = () => {
-    router.back(); // vráti sa na predchádzajúcu obrazovku (Login)
+    router.back();
   };
 
   return (
@@ -48,49 +45,52 @@ export default function RegisterScreen() {
       colors={[colors.gradientTop, colors.gradientBottom]}
       style={styles.container}
     >
-      {/* Nadpisy */}
-      <Text style={styles.appTitle}>Mapero Interier</Text>
-      <Text style={styles.screenTitle}>Register</Text>
+      {/* Titles */}
+      <Text style={[styles.appTitle, { color: colors.textPrimary }]}>
+        Mapero Interier
+      </Text>
+      <Text style={[styles.screenTitle, { color: colors.textPrimary }]}>
+        Register
+      </Text>
 
-      {/* Karta s formulárom */}
-      <View style={styles.card}>
+      {/* Form card */}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <TextInput
           placeholder="User name"
-          placeholderTextColor="#888"
-          style={styles.input}
+          placeholderTextColor={colors.placeholder}
+          style={[styles.input, { backgroundColor: colors.inputBackground }]}
           value={username}
           onChangeText={setUsername}
         />
 
         <TextInput
           placeholder="Password"
-          placeholderTextColor="#888"
+          placeholderTextColor={colors.placeholder}
           secureTextEntry
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.inputBackground }]}
           value={password}
           onChangeText={setPassword}
         />
 
         <TextInput
           placeholder="Password again"
-          placeholderTextColor="#888"
+          placeholderTextColor={colors.placeholder}
           secureTextEntry
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.inputBackground }]}
           value={passwordAgain}
           onChangeText={setPasswordAgain}
         />
 
         <TextInput
           placeholder="Email"
-          placeholderTextColor="#888"
+          placeholderTextColor={colors.placeholder}
           keyboardType="email-address"
           autoCapitalize="none"
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.inputBackground }]}
           value={email}
           onChangeText={setEmail}
         />
 
-        {/* Tlačidlá v strede */}
         <View style={styles.buttons}>
           <AppButton title="Back" variant="secondary" onPress={handleBack} />
           <AppButton title="Register" onPress={handleRegister} />
@@ -106,34 +106,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: layout.padding,
   },
+
   appTitle: {
-    color: colors.textPrimary,
     fontSize: 30,
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: 10,
   },
+
   screenTitle: {
-    color: colors.textPrimary,
     fontSize: 22,
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 30,
   },
+
   card: {
-    backgroundColor: 'rgba(0,0,0,0.35)',
     borderRadius: 30,
     padding: 25,
-    width: '80%',        // cca polovica / dve tretiny šírky
-    alignSelf: 'center', // karta v strede obrazovky
+    width: '80%',
+    alignSelf: 'center',
+    borderWidth: 1,
   },
+
   input: {
-    backgroundColor: colors.inputBackground,
     height: layout.inputHeight,
     borderRadius: layout.radius,
     paddingHorizontal: 15,
     marginBottom: 12,
   },
+
   buttons: {
     flexDirection: 'row',
     justifyContent: 'center',

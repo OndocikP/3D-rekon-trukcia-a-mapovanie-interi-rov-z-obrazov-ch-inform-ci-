@@ -34,20 +34,24 @@ const styles = StyleSheet.create({
   card: {
     width: 130,
     height: 130,
-    backgroundColor: '#2b2333',
+    backgroundColor: colors.card,
     borderRadius: 12,
     padding: 10,
     marginBottom: 18,
     marginHorizontal: 8,
     justifyContent: 'space-between',
     alignItems: 'center',
+
+    // ✅ jemný rámček
+    borderWidth: 1,
+    borderColor: colors.card,
   },
 
   iconBox: {
     width: '80%',
     height: '60%',
     borderRadius: 8,
-    backgroundColor: '#3b333f',
+    backgroundColor: colors.card,
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -1,0 +1,11 @@
+how to start
+cd Front-and
+npm install
+npx expo start
+
+
+
+Co treba doribit
+Seting  
+prisposobenia:
+    farbatextu, farba pozadia, farba tlacidiel

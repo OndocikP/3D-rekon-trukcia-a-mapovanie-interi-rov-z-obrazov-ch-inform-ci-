@@ -13,21 +13,23 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 
-import { colors } from '../../src/theme/colors';
 import { layout } from '../../src/theme/layout';
+import { useColors } from '../../src/theme/ColorsProvider';
 
 type PickedImage = {
   uri: string;
 };
 
 export default function ProjectNewScreen() {
+  const { colors } = useColors();
+
   const [projectName, setProjectName] = useState('');
   const [images, setImages] = useState<PickedImage[]>([]);
 
   const pickImages = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Permission', 'Povoľ prístup k fotkám.');
+      Alert.alert('Permission', 'Please allow access to photos.');
       return;
     }
 
@@ -38,10 +40,9 @@ export default function ProjectNewScreen() {
       quality: 1,
     });
 
-    if (result.canceled) return;
-
-    const picked = result.assets.map((a) => ({ uri: a.uri }));
-    setImages((prev) => [...prev, ...picked]);
+    if (!result.canceled) {
+      setImages((prev) => [...prev, ...result.assets.map(a => ({ uri: a.uri }))]);
+    }
   };
 
   const removeImage = (uri: string) => {
@@ -66,26 +67,45 @@ export default function ProjectNewScreen() {
       colors={[colors.gradientTop, colors.gradientBottom]}
       style={styles.container}
     >
-      <Text style={styles.header}>New Project</Text>
+      <Text style={[styles.header, { color: colors.textPrimary }]}>
+        New Project
+      </Text>
 
       {/* PROJECT NAME */}
-      <Text style={styles.label}>Project name</Text>
+      <Text style={[styles.label, { color: colors.textSecondary }]}>
+        Project name
+      </Text>
+
       <TextInput
         value={projectName}
         onChangeText={setProjectName}
         placeholder="Project name"
-        placeholderTextColor="rgba(255,255,255,0.55)"
-        style={styles.input}
+        placeholderTextColor={colors.placeholder}
+        style={[
+          styles.input,
+          {
+            backgroundColor: colors.card,
+            color: colors.textPrimary,
+            borderColor: colors.cardBorder,
+          },
+        ]}
         autoFocus
       />
 
       {/* UPLOAD */}
-      <Pressable style={styles.uploadBtn} onPress={pickImages}>
-        <Text style={styles.uploadText}>Upload files</Text>
+      <Pressable
+        style={[styles.uploadBtn, { backgroundColor: colors.secondary }]}
+        onPress={pickImages}
+      >
+        <Text style={[styles.uploadText, { color: colors.buttonText }]}>
+          Upload files
+        </Text>
       </Pressable>
 
       {/* COUNT */}
-      <Text style={styles.countText}>Uploaded: {images.length}</Text>
+      <Text style={[styles.countText, { color: colors.textSecondary }]}>
+        Uploaded: {images.length}
+      </Text>
 
       {/* IMAGES GRID */}
       <FlatList
@@ -98,12 +118,17 @@ export default function ProjectNewScreen() {
             onLongPress={() => removeImage(item.uri)}
             style={styles.thumbWrap}
           >
-            <Image source={{ uri: item.uri }} style={styles.thumb} />
-            <Text style={styles.removeHint}>hold to remove</Text>
+            <Image
+              source={{ uri: item.uri }}
+              style={[styles.thumb, { backgroundColor: colors.card }]}
+            />
+            <Text style={[styles.removeHint, { color: colors.textSecondary }]}>
+              hold to remove
+            </Text>
           </Pressable>
         )}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
             No images yet. Tap “Upload files”.
           </Text>
         }
@@ -111,20 +136,29 @@ export default function ProjectNewScreen() {
 
       {/* FOOTER */}
       <View style={styles.footer}>
-        <Pressable style={[styles.footerBtn, styles.secondary]} onPress={goHome}>
-          <Text style={styles.footerBtnText}>Home</Text>
+        <Pressable
+          style={[styles.footerBtn, { backgroundColor: colors.primary }]}
+          onPress={goHome}
+        >
+          <Text style={[styles.footerBtnText, { color: colors.textPrimary }]}>
+            Home
+          </Text>
         </Pressable>
 
         <Pressable
           style={[
             styles.footerBtn,
-            styles.primary,
-            !projectName.trim() && { opacity: 0.5 },
+            {
+              backgroundColor: colors.primary,
+              opacity: projectName.trim() ? 1 : 0.5,
+            },
           ]}
           onPress={goGenerate}
           disabled={!projectName.trim()}
         >
-          <Text style={styles.footerBtnText}>Generate</Text>
+          <Text style={[styles.footerBtnText, { color: colors.buttonText }]}>
+            Generate
+          </Text>
         </Pressable>
       </View>
     </LinearGradient>
@@ -139,14 +173,12 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    color: colors.textPrimary,
     fontSize: 26,
     fontWeight: '800',
     marginBottom: 16,
   },
 
   label: {
-    color: 'rgba(255,255,255,0.9)',
     marginBottom: 8,
     fontSize: 12,
     fontWeight: '600',
@@ -156,9 +188,8 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 14,
     paddingHorizontal: 14,
-    color: '#fff',
-    backgroundColor: 'rgba(0,0,0,0.35)',
     marginBottom: 14,
+    borderWidth: 1,
   },
 
   uploadBtn: {
@@ -166,17 +197,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
     marginBottom: 10,
   },
 
   uploadText: {
-    color: '#fff',
     fontWeight: '800',
   },
 
   countText: {
-    color: 'rgba(255,255,255,0.85)',
     marginBottom: 10,
   },
 
@@ -193,19 +221,17 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1,
     borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.25)',
   },
 
   removeHint: {
-    color: 'rgba(255,255,255,0.55)',
     fontSize: 10,
     marginTop: 4,
     textAlign: 'center',
   },
 
   emptyText: {
-    color: 'rgba(255,255,255,0.65)',
     marginTop: 10,
+    textAlign: 'center',
   },
 
   footer: {
@@ -225,16 +251,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  primary: {
-    backgroundColor: 'rgba(255,255,255,0.18)',
-  },
-
-  secondary: {
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-
   footerBtnText: {
-    color: '#fff',
     fontWeight: '900',
   },
 });

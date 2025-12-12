@@ -1,22 +1,23 @@
 import React from 'react';
-import { View, Text, StyleSheet,Image  } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 
-import { colors } from '../theme/colors';
 import { layout } from '../theme/layout';
-
 import AppButton from '../components/AppButton';
 import ProjectCard from '../components/ProjectCard';
+
+// ✅ COLORS Z PROVIDERU
+import { useColors } from '../theme/ColorsProvider';
 
 const folderIcon = require('../assets/folder.png');
 
 const PROJECTS = [
   { id: '1', name: 'Project 1', icon: folderIcon },
   { id: '2', name: 'Project 2', icon: folderIcon },
-  { id: '3', name: 'Kuchyňa',   icon: folderIcon },
-  { id: '4', name: 'Kúpeľňa',   icon: folderIcon },
-  { id: '5', name: 'Project 32',icon: folderIcon },
+  { id: '3', name: 'Kuchyňa', icon: folderIcon },
+  { id: '4', name: 'Kúpeľňa', icon: folderIcon },
+  { id: '5', name: 'Project 32', icon: folderIcon },
 ];
 
 const logOut = () => {
@@ -24,6 +25,8 @@ const logOut = () => {
 };
 
 export default function MainScreen() {
+  const { colors } = useColors();
+
   return (
     <LinearGradient
       colors={[colors.gradientTop, colors.gradientBottom]}
@@ -31,21 +34,32 @@ export default function MainScreen() {
     >
       {/* HEADER */}
       <View style={styles.header}>
-        <Text style={styles.title}>Projects</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>
+          Projects
+        </Text>
+
         <AppButton
+          variant="secondary"
           title="New project"
           onPress={() => router.push('/project/new')}
         />
       </View>
 
-      {/* ZÓNA S PROJEKTAMI */}
-      <View style={styles.projectsCard}>
+      {/* PROJECTS ZONE */}
+      <View
+        style={[
+          styles.projectsCard,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.cardBorder,
+          },
+        ]}
+      >
         <View style={styles.projectsGrid}>
           {PROJECTS.map((item) => (
             <ProjectCard
               key={item.id}
               name={item.name}
-              /*icon={item.icon}*/
               onPress={() => router.push(`/project/${item.id}`)}
             />
           ))}
@@ -55,14 +69,14 @@ export default function MainScreen() {
       {/* FOOTER */}
       <View style={styles.footer}>
         <AppButton
-          title="Settings"
-          variant="secondary"
-          onPress={() => console.log('Settings')}
-        />
-        <AppButton
           title="Log out"
           variant="secondary"
           onPress={logOut}
+        />
+        <AppButton
+          title="Settings"
+          variant="secondary"
+          onPress={() => router.push('/settings')}
         />
       </View>
     </LinearGradient>
@@ -85,16 +99,15 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    color: colors.textPrimary,
     fontSize: 26,
     fontWeight: '700',
   },
 
   projectsCard: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
     borderRadius: 24,
     paddingVertical: 20,
+    borderWidth: 1,
   },
 
   projectsGrid: {
