@@ -4,7 +4,7 @@ export const colors = {
   gradientBottom: '#3a0a63',
   
   // button
-  primary: '#9b2ce0',
+  primary: '#7ddb6aff',
   secondary: '#5c1d95',
 
   textPrimary: '#ffffff',

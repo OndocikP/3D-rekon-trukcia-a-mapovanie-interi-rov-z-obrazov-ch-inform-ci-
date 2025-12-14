@@ -56,8 +56,8 @@ export const THEMES: Record<ThemeName, AppColors> = {
     gradientTop: '#ffffff',
     gradientBottom: '#f2f2f7',
 
-    primary: '#b3b3b3ff',
-    secondary: '#b4b4b4ff',
+    primary: '#3ad67bff',
+    secondary: '#3ad67bff',
 
     textPrimary: '#000000ff',
     textSecondary: '#4b5563',
@@ -92,7 +92,7 @@ export const THEMES: Record<ThemeName, AppColors> = {
 
     danger: '#fb7185',
 
-    card: 'rgba(255,255,255,0.06)',
+    card: 'rgba(184, 36, 36, 0.06)',
     cardBorder: 'rgba(255,255,255,0.14)',
 
     modalOverlay: 'rgba(0,0,0,0.7)',

@@ -12,7 +12,8 @@ export default function LoginScreen() {
   const [forgotVisible, setForgotVisible] = useState(false);
   const [email, setEmail] = useState('');
 
-  const { colors } = useColors();
+  const { colors, themeName } = useColors();
+
 
   return (
     <LinearGradient
@@ -22,7 +23,10 @@ export default function LoginScreen() {
       {/* LOGO */}
       <Image
         source={require('../assets/logo.png')}
-        style={styles.logoImage}
+        style={[
+          styles.logoImage,
+          themeName === 'black' && styles.logoInverted,
+        ]}
         resizeMode="contain"
       />
 
@@ -170,5 +174,9 @@ const styles = StyleSheet.create({
     marginTop: 15,
     fontSize: 13,
     textDecorationLine: 'underline',
+  },
+
+  logoInverted: {
+    tintColor: '#fff',
   },
 });

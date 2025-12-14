@@ -52,10 +52,16 @@ export default function ForgotPasswordScreen() {
           style={[styles.input, { backgroundColor: colors.inputBackground }]}
         />
 
-        <AppButton
-          title="Change password"
-          onPress={() => router.replace('/login')}
-        />
+        <View style={styles.buttonRow}>
+          <AppButton
+            title="Back"
+            onPress={() => router.back()}
+          />
+          <AppButton
+            title="Change password"
+            onPress={() => router.replace('/login')}
+          />
+        </View>
       </View>
     </LinearGradient>
   );
@@ -67,7 +73,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: layout.padding,
   },
-
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
   card: {
     borderRadius: 30,
     padding: 25,

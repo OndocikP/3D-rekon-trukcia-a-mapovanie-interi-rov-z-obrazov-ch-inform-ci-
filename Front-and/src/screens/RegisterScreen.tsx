@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Platform } from 'react-native';
+
 import { LinearGradient } from 'expo-linear-gradient';
 import { layout } from '../theme/layout';
 import AppButton from '../components/AppButton';
@@ -15,29 +16,26 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordAgain, setPasswordAgain] = useState('');
+  const [error, setError] = useState('');
 
   const handleRegister = () => {
     if (!username || !email || !password || !passwordAgain) {
-      Alert.alert('Error', 'Please fill in all fields.');
+      setError('Please fill in all fields.');
       return;
     }
 
     if (password !== passwordAgain) {
-      Alert.alert('Error', 'Passwords do not match.');
+      setError('Passwords do not match.');
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters.');
+      setError('Password must be at least 6 characters.');
       return;
     }
 
-    Alert.alert('OK', 'Account created (demo).');
+    setError('');
     router.push('/main');
-  };
-
-  const handleBack = () => {
-    router.back();
   };
 
   return (
@@ -49,12 +47,18 @@ export default function RegisterScreen() {
       <Text style={[styles.appTitle, { color: colors.textPrimary }]}>
         Mapero Interier
       </Text>
+
       <Text style={[styles.screenTitle, { color: colors.textPrimary }]}>
         Register
       </Text>
 
       {/* Form card */}
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: colors.card, borderColor: colors.cardBorder },
+        ]}
+      >
         <TextInput
           placeholder="User name"
           placeholderTextColor={colors.placeholder}
@@ -91,8 +95,19 @@ export default function RegisterScreen() {
           onChangeText={setEmail}
         />
 
+        {/* ERROR MESSAGE */}
+        {error ? (
+          <Text style={[styles.errorText, { color: colors.danger }]}>
+            {error}
+          </Text>
+        ) : null}
+
         <View style={styles.buttons}>
-          <AppButton title="Back" variant="secondary" onPress={handleBack} />
+          <AppButton
+            title="Back"
+            variant="secondary"
+            onPress={() => router.back()}
+          />
           <AppButton title="Register" onPress={handleRegister} />
         </View>
       </View>
@@ -122,12 +137,15 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    borderRadius: 30,
-    padding: 25,
-    width: '80%',
-    alignSelf: 'center',
-    borderWidth: 1,
-  },
+  borderRadius: 30,
+  padding: 25,
+  width: Platform.OS === 'web' ? '33%' : '80%', // 🔥 1/3 obrazovky
+  maxWidth: Platform.OS === 'web' ? 480 : '100%', // 🔥 aby to nebolo obrie
+  minWidth: Platform.OS === 'web' ? 360 : '80%',  // 🔥 aby to nebolo príliš úzke
+  alignSelf: 'center',
+  borderWidth: 1,
+},
+
 
   input: {
     height: layout.inputHeight,
@@ -136,11 +154,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
+  errorText: {
+    textAlign: 'center',
+    marginBottom: 10,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+
   buttons: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 10,
-    marginTop: 15,
+    marginTop: 10,
   },
 });

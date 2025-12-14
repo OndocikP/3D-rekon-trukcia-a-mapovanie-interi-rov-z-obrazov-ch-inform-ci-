@@ -1,15 +1,18 @@
 import React from 'react';
 import { Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { layout } from '../theme/layout';
 
 // ✅ COLORS Z PROVIDERU
 import { useColors } from '../theme/ColorsProvider';
 
 interface Props {
-  title: string;
+  title?: string;
   onPress?: () => void;
   variant?: 'primary' | 'secondary' | 'danger' | 'outline';
   disabled?: boolean;
+  icon?: keyof typeof MaterialIcons.glyphMap;
+  iconSize?: number;
 }
 
 export default function AppButton({
@@ -17,6 +20,8 @@ export default function AppButton({
   onPress,
   variant = 'primary',
   disabled = false,
+  icon,
+  iconSize = 22,
 }: Props) {
   const { colors } = useColors();
 
@@ -32,17 +37,28 @@ export default function AppButton({
         styles.button,
         variantStyle,
         disabled && styles.disabled,
+        icon && !title && styles.iconOnly,
       ]}
     >
-      <Text
-        style={[
-          styles.text,
-          textStyle,
-          disabled && { color: colors.textSecondary },
-        ]}
-      >
-        {title}
-      </Text>
+      {icon && (
+        <MaterialIcons
+          name={icon}
+          size={iconSize}
+          color={colors.buttonText}
+        />
+      )}
+
+      {title && (
+        <Text
+          style={[
+            styles.text,
+            textStyle,
+            disabled && { color: colors.textSecondary },
+          ]}
+        >
+          {title}
+        </Text>
+      )}
     </TouchableOpacity>
   );
 }
@@ -70,9 +86,6 @@ function getVariantStyle(variant: Props['variant'], colors: any) {
 }
 
 function getTextStyle(variant: Props['variant'], colors: any) {
-  if (variant === 'outline') {
-    return { color: colors.buttonText };
-  }
   return { color: colors.buttonText };
 }
 
@@ -87,6 +100,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
+    flexDirection: 'row',
+    gap: 6,
+  },
+
+  iconOnly: {
+    paddingHorizontal: 0,
+    width: layout.buttonHeight,
   },
 
   text: {

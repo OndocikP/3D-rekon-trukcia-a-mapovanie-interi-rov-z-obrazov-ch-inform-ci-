@@ -1,13 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 
 import { layout } from '../theme/layout';
 import AppButton from '../components/AppButton';
 import ProjectCard from '../components/ProjectCard';
-
-// ✅ COLORS Z PROVIDERU
 import { useColors } from '../theme/ColorsProvider';
 
 const folderIcon = require('../assets/folder.png');
@@ -18,6 +16,10 @@ const PROJECTS = [
   { id: '3', name: 'Kuchyňa', icon: folderIcon },
   { id: '4', name: 'Kúpeľňa', icon: folderIcon },
   { id: '5', name: 'Project 32', icon: folderIcon },
+  { id: '6', name: 'Project 33', icon: folderIcon },
+  { id: '7', name: 'Project 34', icon: folderIcon },
+  { id: '8', name: 'Project 35', icon: folderIcon },
+  { id: '9', name: 'Project 36', icon: folderIcon },
 ];
 
 const logOut = () => {
@@ -39,8 +41,9 @@ export default function MainScreen() {
         </Text>
 
         <AppButton
-          variant="secondary"
+          icon="add"
           title="New project"
+          variant="secondary"
           onPress={() => router.push('/project/new')}
         />
       </View>
@@ -55,7 +58,7 @@ export default function MainScreen() {
           },
         ]}
       >
-        <View style={styles.projectsGrid}>
+        <ScrollView contentContainerStyle={styles.projectsGrid}>
           {PROJECTS.map((item) => (
             <ProjectCard
               key={item.id}
@@ -63,21 +66,23 @@ export default function MainScreen() {
               onPress={() => router.push(`/project/${item.id}`)}
             />
           ))}
-        </View>
+        </ScrollView>
       </View>
 
       {/* FOOTER */}
       <View style={styles.footer}>
         <AppButton
-          title="Log out"
+          icon="logout"
           variant="secondary"
           onPress={logOut}
         />
+
         <AppButton
-          title="Settings"
-          variant="secondary"
-          onPress={() => router.push('/settings')}
-        />
+        icon="settings"
+        title="Settings"
+        variant="secondary"
+        onPress={() => router.push('/settings')}
+      />
       </View>
     </LinearGradient>
   );
@@ -106,15 +111,17 @@ const styles = StyleSheet.create({
   projectsCard: {
     flex: 1,
     borderRadius: 24,
-    paddingVertical: 20,
+    paddingVertical: 16,
     borderWidth: 1,
+    overflow: 'hidden',
   },
 
   projectsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 24,
-    gap: 24,
+    justifyContent: 'flex-start',
+    paddingHorizontal: 16,
+    gap: 16,
     alignItems: 'flex-start',
   },
 
