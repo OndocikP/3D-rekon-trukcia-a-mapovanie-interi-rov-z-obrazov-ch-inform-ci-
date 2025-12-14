@@ -1,3 +1,28 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Build / distribution
+dist/
+build/
+
+# Expo / React Native
+.expo/
+.expo-shared/
+
+# IDE / editor
+.vscode/
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python / Back-end
 Back-end/
 
 # Python cache
@@ -10,21 +35,16 @@ __pycache__/
 .venv/
 venv/
 
-# Build / distribution
-build/
-dist/
+# Build / distribution (Python)
 *.egg-info/
-
-# VSCode settings
-.vscode/
 
 # Environment variables
 .env
 *.env
 
-# OS files
-.DS_Store
-Thumbs.db
-
-.jpg
+# Images
 *.jpg
+*.jpeg
+*.png
+*.gif
+*.svg
