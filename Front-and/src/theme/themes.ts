@@ -92,7 +92,7 @@ export const THEMES: Record<ThemeName, AppColors> = {
 
     danger: '#fb7185',
 
-    card: 'rgba(184, 36, 36, 0.06)',
+    card: 'rgba(56, 56, 56, 0.06)',
     cardBorder: 'rgba(255,255,255,0.14)',
 
     modalOverlay: 'rgba(0,0,0,0.7)',
