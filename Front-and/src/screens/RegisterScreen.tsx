@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Platform } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Platform, Alert, ActivityIndicator } from 'react-native';
 
 import { LinearGradient } from 'expo-linear-gradient';
 import { layout } from '../theme/layout';
@@ -8,17 +8,20 @@ import { router } from 'expo-router';
 
 // ✅ COLORS Z PROVIDERU
 import { useColors } from '../theme/ColorsProvider';
+import { useAuth } from '../context/AuthContext';
 
 export default function RegisterScreen() {
   const { colors } = useColors();
+  const { register, login } = useAuth();
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordAgain, setPasswordAgain] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!username || !email || !password || !passwordAgain) {
       setError('Please fill in all fields.');
       return;
@@ -35,7 +38,24 @@ export default function RegisterScreen() {
     }
 
     setError('');
-    router.push('/main');
+    setLoading(true);
+
+    try {
+      // Registrácia
+      await register(username, email, password);
+      
+      // Automatické prihlásenie po registrácii
+      await login(username, password);
+      
+      Alert.alert('Úspech', 'Registrácia bola úspešná!');
+      router.replace('/(tabs)');
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Neznáma chyba';
+      setError(errorMsg);
+      Alert.alert('Chyba pri registrácii', errorMsg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -65,6 +85,7 @@ export default function RegisterScreen() {
           style={[styles.input, { backgroundColor: colors.inputBackground }]}
           value={username}
           onChangeText={setUsername}
+          editable={!loading}
         />
 
         <TextInput
@@ -74,6 +95,7 @@ export default function RegisterScreen() {
           style={[styles.input, { backgroundColor: colors.inputBackground }]}
           value={password}
           onChangeText={setPassword}
+          editable={!loading}
         />
 
         <TextInput
@@ -83,6 +105,7 @@ export default function RegisterScreen() {
           style={[styles.input, { backgroundColor: colors.inputBackground }]}
           value={passwordAgain}
           onChangeText={setPasswordAgain}
+          editable={!loading}
         />
 
         <TextInput
@@ -93,6 +116,7 @@ export default function RegisterScreen() {
           style={[styles.input, { backgroundColor: colors.inputBackground }]}
           value={email}
           onChangeText={setEmail}
+          editable={!loading}
         />
 
         {/* ERROR MESSAGE */}
@@ -107,8 +131,13 @@ export default function RegisterScreen() {
             title="Back"
             variant="secondary"
             onPress={() => router.back()}
+            disabled={loading}
           />
-          <AppButton title="Register" onPress={handleRegister} />
+          <AppButton 
+            title={loading ? "Registrujem..." : "Register"} 
+            onPress={handleRegister}
+            disabled={loading}
+          />
         </View>
       </View>
     </LinearGradient>

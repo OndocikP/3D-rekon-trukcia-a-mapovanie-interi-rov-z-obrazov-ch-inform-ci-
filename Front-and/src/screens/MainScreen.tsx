@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 
@@ -7,33 +7,61 @@ import { layout } from '../theme/layout';
 import AppButton from '../components/AppButton';
 import ProjectCard from '../components/ProjectCard';
 import { useColors } from '../theme/ColorsProvider';
+import { useAuth } from '../context/AuthContext';
+import * as apiClient from '../api/client';
 
 const folderIcon = require('../assets/folder.png');
 
-const PROJECTS = [
-  { id: '1', name: 'Project 1', icon: folderIcon },
-  { id: '2', name: 'Project 2', icon: folderIcon },
-  { id: '3', name: 'Kuchyňa', icon: folderIcon },
-  { id: '4', name: 'Kúpeľňa', icon: folderIcon },
-  { id: '5', name: 'Project 32', icon: folderIcon },
-  { id: '6', name: 'Project 33', icon: folderIcon },
-  { id: '7', name: 'Project 34', icon: folderIcon },
-  { id: '8', name: 'Project 35', icon: folderIcon },
-  { id: '9', name: 'Project 36', icon: folderIcon },
-];
-
-const logOut = () => {
-  router.replace('/login');
-};
-
 export default function MainScreen() {
   const { colors } = useColors();
+  const { logout, token, user } = useAuth();
+  const [projects, setProjects] = useState<apiClient.Project[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Načítaj projekty na start
+  useEffect(() => {
+    loadProjects();
+  }, []);
+
+  const loadProjects = async () => {
+    try {
+      setLoading(true);
+      if (!token) {
+        Alert.alert('Chyba', 'Token nie je dostupný');
+        return;
+      }
+
+      const response = await apiClient.getUserProjects(token);
+      if (response.data) {
+        setProjects(response.data);
+      } else {
+        Alert.alert('Chyba', response.error || 'Nepodarilo sa načítať projekty');
+      }
+    } catch (error) {
+      console.error('Error loading projects:', error);
+      Alert.alert('Chyba', error instanceof Error ? error.message : 'Neznáma chyba');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace('/login');
+  };
 
   return (
     <LinearGradient
       colors={[colors.gradientTop, colors.gradientBottom]}
       style={styles.container}
     >
+      {/* USER INFO */}
+      <View style={styles.userInfo}>
+        <Text style={[styles.userGreeting, { color: colors.textSecondary }]}>
+          👤 {user?.username || 'User'}
+        </Text>
+      </View>
+
       {/* HEADER */}
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.textPrimary }]}>
@@ -58,15 +86,27 @@ export default function MainScreen() {
           },
         ]}
       >
-        <ScrollView contentContainerStyle={styles.projectsGrid}>
-          {PROJECTS.map((item) => (
-            <ProjectCard
-              key={item.id}
-              name={item.name}
-              onPress={() => router.push(`/project/${item.id}`)}
-            />
-          ))}
-        </ScrollView>
+        {loading ? (
+          <View style={styles.centerContent}>
+            <ActivityIndicator size="large" color={colors.textPrimary} />
+          </View>
+        ) : projects.length === 0 ? (
+          <View style={styles.centerContent}>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              Žiadne projekty. Vytvor svoj prvý projekt!
+            </Text>
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.projectsGrid}>
+            {projects.map((item) => (
+              <ProjectCard
+                key={item.id}
+                name={item.project_name}
+                onPress={() => router.push(`/project/${item.id}`)}
+              />
+            ))}
+          </ScrollView>
+        )}
       </View>
 
       {/* FOOTER */}
@@ -74,15 +114,14 @@ export default function MainScreen() {
         <AppButton
           icon="logout"
           variant="secondary"
-          onPress={logOut}
+          onPress={handleLogout}
         />
 
         <AppButton
-        icon="settings"
-        title="Settings"
-        variant="secondary"
-        onPress={() => router.push('/settings')}
-      />
+          title="Settings"
+          variant="secondary"
+          onPress={() => router.push('/settings')}
+        />
       </View>
     </LinearGradient>
   );
@@ -94,6 +133,15 @@ const styles = StyleSheet.create({
     padding: layout.padding,
     paddingTop: 40,
     paddingBottom: 24,
+  },
+
+  userInfo: {
+    marginBottom: 16,
+  },
+
+  userGreeting: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 
   header: {
@@ -125,9 +173,22 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
 
+  centerContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  emptyText: {
+    fontSize: 16,
+    textAlign: 'center',
+  },
+
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: 16,
+    gap: 12,
   },
 });

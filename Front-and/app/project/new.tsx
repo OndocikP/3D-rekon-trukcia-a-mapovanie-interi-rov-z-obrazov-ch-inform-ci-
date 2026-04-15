@@ -8,6 +8,7 @@ import {
   Image,
   FlatList,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -15,6 +16,8 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { layout } from '../../src/theme/layout';
 import { useColors } from '../../src/theme/ColorsProvider';
+import { useAuth } from '../../src/context/AuthContext';
+import * as apiClient from '../../src/api/client';
 
 type PickedImage = {
   uri: string;
@@ -22,9 +25,13 @@ type PickedImage = {
 
 export default function ProjectNewScreen() {
   const { colors } = useColors();
+  const { token } = useAuth();
 
   const [projectName, setProjectName] = useState('');
+  const [description, setDescription] = useState('');
   const [images, setImages] = useState<PickedImage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const pickImages = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -49,17 +56,78 @@ export default function ProjectNewScreen() {
     setImages((prev) => prev.filter((img) => img.uri !== uri));
   };
 
-  const goHome = () => router.replace('/main');
+  const goHome = () => router.replace('/(tabs)');
 
-  const goGenerate = () => {
-    router.push({
-      pathname: '/generate',
-      params: {
-        id: 'new',
-        name: projectName,
-        images: JSON.stringify(images),
-      },
-    });
+  const goGenerate = async () => {
+    if (!projectName.trim()) {
+      Alert.alert('Chyba', 'Zadaj meno projektu');
+      return;
+    }
+
+    if (images.length === 0) {
+      Alert.alert('Chyba', 'Pridaj aspoň jeden obrázok');
+      return;
+    }
+
+    if (!token) {
+      Alert.alert('Chyba', 'Token nie je dostupný');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // 1. Vytvor projekt
+      const projectResponse = await apiClient.createProject(
+        { project_name: projectName, description },
+        token
+      );
+
+      if (!projectResponse.data) {
+        Alert.alert('Chyba', projectResponse.error || 'Nepodarilo sa vytvoriť projekt');
+        return;
+      }
+
+      const projectId = projectResponse.data.id;
+
+      // 2. Nahraj obrázky
+      setUploading(true);
+      let successCount = 0;
+
+      for (const image of images) {
+        try {
+          // Konvertuj URI na File
+          const response = await fetch(image.uri);
+          const blob = await response.blob();
+          const file = new File([blob], `image.jpg`, { type: 'image/jpeg' });
+
+          const uploadResponse = await apiClient.uploadProjectImage(
+            projectId,
+            file,
+            token
+          );
+
+          if (uploadResponse.data) {
+            successCount++;
+          }
+        } catch (err) {
+          console.error('Image upload error:', err);
+        }
+      }
+
+      setUploading(false);
+      Alert.alert(
+        'Úspech',
+        `Projekt vytvorený! ${successCount}/${images.length} obrázkov nahraných.`
+      );
+
+      // Presmeruj na generate alebo project detail
+      router.push(`/project/${projectId}`);
+    } catch (error) {
+      Alert.alert('Chyba', error instanceof Error ? error.message : 'Neznáma chyba');
+    } finally {
+      setLoading(false);
+      setUploading(false);
+    }
   };
 
   return (
@@ -90,21 +158,55 @@ export default function ProjectNewScreen() {
           },
         ]}
         autoFocus
+        editable={!loading && !uploading}
+      />
+
+      {/* DESCRIPTION */}
+      <Text style={[styles.label, { color: colors.textSecondary }]}>
+        Description (optional)
+      </Text>
+
+      <TextInput
+        value={description}
+        onChangeText={setDescription}
+        placeholder="Project description"
+        placeholderTextColor={colors.placeholder}
+        style={[
+          styles.input,
+          {
+            backgroundColor: colors.card,
+            color: colors.textPrimary,
+            borderColor: colors.cardBorder,
+          },
+        ]}
+        multiline
+        editable={!loading && !uploading}
       />
 
       {/* UPLOAD */}
       <Pressable
-        style={[styles.uploadBtn, { backgroundColor: colors.secondary }]}
+        style={[
+          styles.uploadBtn,
+          {
+            backgroundColor: colors.secondary,
+            opacity: loading || uploading ? 0.5 : 1,
+          },
+        ]}
         onPress={pickImages}
+        disabled={loading || uploading}
       >
-        <Text style={[styles.uploadText, { color: colors.buttonText }]}>
-          Upload files
-        </Text>
+        {uploading ? (
+          <ActivityIndicator size="small" color={colors.buttonText} />
+        ) : (
+          <Text style={[styles.uploadText, { color: colors.buttonText }]}>
+            Upload files
+          </Text>
+        )}
       </Pressable>
 
       {/* COUNT */}
       <Text style={[styles.countText, { color: colors.textSecondary }]}>
-        Uploaded: {images.length}
+        Uploaded: {images.length} {uploading && '(uploading)'}
       </Text>
 
       {/* IMAGES GRID */}
@@ -137,10 +239,17 @@ export default function ProjectNewScreen() {
       {/* FOOTER */}
       <View style={styles.footer}>
         <Pressable
-          style={[styles.footerBtn, { backgroundColor: colors.primary }]}
+          style={[
+            styles.footerBtn,
+            {
+              backgroundColor: colors.primary,
+              opacity: loading || uploading ? 0.5 : 1,
+            },
+          ]}
           onPress={goHome}
+          disabled={loading || uploading}
         >
-          <Text style={[styles.footerBtnText, { color: colors.textPrimary }]}>
+          <Text style={[styles.footerBtnText, { color: colors.buttonText }]}>
             Home
           </Text>
         </Pressable>
@@ -150,15 +259,27 @@ export default function ProjectNewScreen() {
             styles.footerBtn,
             {
               backgroundColor: colors.primary,
-              opacity: projectName.trim() ? 1 : 0.5,
+              opacity:
+                projectName.trim() && images.length > 0 && !loading && !uploading
+                  ? 1
+                  : 0.5,
             },
           ]}
           onPress={goGenerate}
-          disabled={!projectName.trim()}
+          disabled={
+            !projectName.trim() ||
+            images.length === 0 ||
+            loading ||
+            uploading
+          }
         >
-          <Text style={[styles.footerBtnText, { color: colors.buttonText }]}>
-            Generate
-          </Text>
+          {loading || uploading ? (
+            <ActivityIndicator size="small" color={colors.buttonText} />
+          ) : (
+            <Text style={[styles.footerBtnText, { color: colors.buttonText }]}>
+              {loading ? 'Creating...' : uploading ? 'Uploading...' : 'Generate'}
+            </Text>
+          )}
         </Pressable>
       </View>
     </LinearGradient>

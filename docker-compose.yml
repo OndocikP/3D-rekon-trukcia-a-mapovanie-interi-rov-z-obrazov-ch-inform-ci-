@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Databáza
+  postgres:
+    image: postgres:17-alpine
+    container_name: rekon_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: rekon_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./Back-end
+      dockerfile: Dockerfile
+    container_name: rekon_backend
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres123@postgres:5432/rekon_db
+      SECRET_KEY: your-super-secret-key-change-this-in-production
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./Back-end/routers/projects:/app/routers/projects
+    command: sh -c "python init_db.py && uvicorn main:app --host 0.0.0.0 --port 8000"
+
+  # pgAdmin - Webový interfejs pre databázu
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: rekon_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:

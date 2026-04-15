@@ -1,25 +1,49 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, Dimensions, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Image, ScrollView, Dimensions, Platform, ActivityIndicator, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
 
 import { layout } from '../../src/theme/layout';
 import AppButton from '../../src/components/AppButton';
 import { useColors } from '../../src/theme/ColorsProvider';
+import { useAuth } from '../../src/context/AuthContext';
+import * as apiClient from '../../src/api/client';
 
 export default function ProjectDetailScreen() {
   const { colors } = useColors();
+  const { token } = useAuth();
+  const { id } = useLocalSearchParams<{ id?: string }>();
 
-  const PROJECTS: Record<string, string> = {
-    '1': 'Project 1',
-    '2': 'Project 2',
-    '3': 'Kuchyňa',
-    '4': 'Kúpeľňa',
-    '5': 'Project 32',
+  const [project, setProject] = useState<apiClient.Project | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadProject();
+  }, [id, token]);
+
+  const loadProject = async () => {
+    if (!id || !token) {
+      Alert.alert('Chyba', 'Projekt ID alebo token chýba');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await apiClient.getProject(id, token);
+      if (response.data) {
+        setProject(response.data);
+      } else {
+        Alert.alert('Chyba', response.error || 'Nepodarilo sa načítať projekt');
+      }
+    } catch (error) {
+      console.error('Error loading project:', error);
+      Alert.alert('Chyba', error instanceof Error ? error.message : 'Neznáma chyba');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const projectName = PROJECTS[id ?? ''] ?? 'Project';
+  const projectName = project?.project_name ?? 'Project';
 
   const screenWidth = Dimensions.get('window').width;
   const screenHeight = Dimensions.get('window').height;
@@ -36,8 +60,23 @@ export default function ProjectDetailScreen() {
       colors={[colors.gradientTop, colors.gradientBottom]}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.content}>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.textPrimary} />
+        </View>
+      ) : !project ? (
+        <View style={styles.errorContainer}>
+          <Text style={[styles.errorText, { color: colors.textPrimary }]}>
+            Projekt sa nepodarilo načítať
+          </Text>
+          <AppButton
+            title="Späť"
+            onPress={() => router.replace('/main')}
+          />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.scroll}>
+          <View style={styles.content}>
 
           {/* HEADER */}
           <View style={styles.headerRow}>
@@ -95,8 +134,9 @@ export default function ProjectDetailScreen() {
             />
           </View>
 
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
+      )}
     </LinearGradient>
   );
 }
@@ -104,6 +144,25 @@ export default function ProjectDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: layout.padding,
+  },
+
+  errorText: {
+    fontSize: 16,
+    marginBottom: 20,
+    textAlign: 'center',
   },
 
   scroll: {
