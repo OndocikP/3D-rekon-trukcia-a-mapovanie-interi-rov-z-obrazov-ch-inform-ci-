@@ -145,6 +145,7 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ modelUrl, token, wid
           const geometry = new THREE.BufferGeometry();
           const positions = [];
           const normals = [];
+          const colors = [];
           
           if (format === 'ascii') {
             const dataLines = lines.slice(headerEndLine + 1);
@@ -153,8 +154,29 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ modelUrl, token, wid
               const parts = line.trim().split(/\s+/);
               if (parts.length >= 3) {
                 positions.push(parseFloat(parts[0]), parseFloat(parts[1]), parseFloat(parts[2]));
-                if (parts.length >= 6) {
-                  normals.push(parseFloat(parts[3]), parseFloat(parts[4]), parseFloat(parts[5]));
+                
+                // Čítaj normály ak existujú
+                let partIdx = 3;
+                if (partIdx < parts.length && properties.length > 3 && properties[3].name === 'nx') {
+                  normals.push(parseFloat(parts[partIdx]), parseFloat(parts[partIdx+1]), parseFloat(parts[partIdx+2]));
+                  partIdx += 3;
+                }
+                
+                // Čítaj farby ak existujú (red, green, blue)
+                let hasColor = false;
+                for (let i = 0; i < properties.length; i++) {
+                  if (properties[i].name === 'red' && partIdx < parts.length) {
+                    const r = parseInt(parts[partIdx]) / 255;
+                    const g = parseInt(parts[partIdx+1]) / 255;
+                    const b = parseInt(parts[partIdx+2]) / 255;
+                    colors.push(r, g, b);
+                    hasColor = true;
+                    break;
+                  }
+                }
+                if (!hasColor) {
+                  // Ak nema farby, pouzij default svetlomodra
+                  colors.push(0.31, 0.765, 0.966);
                 }
               }
             }
@@ -187,6 +209,9 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ modelUrl, token, wid
                 } else if (prop.type === 'int') {
                   val = view.getInt32(offset + propOffset, isLittleEndian);
                   propOffset += 4;
+                } else if (prop.type === 'uchar' || prop.type === 'uint8') {
+                  val = view.getUint8(offset + propOffset);
+                  propOffset += 1;
                 }
                 vertexValues[prop.name] = val;
               }
@@ -197,6 +222,17 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ modelUrl, token, wid
               if (propIndices['nx'] && vertexValues['nx'] !== undefined) {
                 normals.push(vertexValues['nx'], vertexValues['ny'], vertexValues['nz']);
               }
+              
+              // Čítaj farby z red, green, blue (ako unsigned char 0-255)
+              if (propIndices['red']) {
+                const r = (vertexValues['red'] / 255) || 0.5;
+                const g = (vertexValues['green'] / 255) || 0.5;
+                const b = (vertexValues['blue'] / 255) || 0.5;
+                colors.push(r, g, b);
+              } else {
+                // Default farba ak nema RGB
+                colors.push(0.31, 0.765, 0.966);
+              }
               offset += bytesPerVertex;
             }
           }
@@ -204,11 +240,17 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ modelUrl, token, wid
           if (positions.length === 0) return null;
           
           geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+          
+          if (colors.length > 0) {
+            geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
+          }
+          
           if (normals.length > 0) {
             geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normals), 3));
           } else {
             geometry.computeVertexNormals();
           }
+          
           return geometry;
         } catch (err) {
           console.error('[3D VIEWER] Parse error:', err);
@@ -225,7 +267,14 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ modelUrl, token, wid
           const geometry = parsePLY(buffer);
           
           if (geometry) {
-            const material = new THREE.MeshPhongMaterial({ color: 0x4fc3f7, specular: 0x111111, shininess: 200, wireframe: false, flatShading: false });
+            const material = new THREE.MeshPhongMaterial({ 
+              side: THREE.DoubleSide,
+              vertexColors: true,
+              specular: 0x444444,
+              shininess: 100,
+              wireframe: false,
+              flatShading: false 
+            });
             const mesh = new THREE.Mesh(geometry, material);
             geometry.computeBoundingBox();
             const center = new THREE.Vector3();
