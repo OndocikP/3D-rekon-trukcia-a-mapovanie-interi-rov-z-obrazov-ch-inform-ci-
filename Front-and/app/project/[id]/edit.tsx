@@ -8,6 +8,7 @@ import {
   Image,
   FlatList,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -15,11 +16,18 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { layout } from '../../../src/theme/layout';
 import { useColors } from '../../../src/theme/ColorsProvider';
+import { useAuth } from '../../../src/context/AuthContext';
+import * as api from '../../../src/api/client';
 
-type PickedImage = { uri: string };
+type ProjectImage = { 
+  id: string; 
+  uri: string; 
+  isFromBackend?: boolean;
+};
 
 export default function ProjectEditScreen() {
   const { colors } = useColors();
+  const { token } = useAuth();
 
   const params = useLocalSearchParams<{ id?: string; name?: string }>();
   const id = params.id ?? '';
@@ -37,16 +45,47 @@ export default function ProjectEditScreen() {
   }, [params.name, id]);
 
   const [projectName, setProjectName] = useState('');
-  const [images, setImages] = useState<PickedImage[]>([]);
+  const [images, setImages] = useState<ProjectImage[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     setProjectName(initialName);
-  }, [initialName]);
+    loadProjectImages();
+  }, [initialName, id, token]);
 
+  /**
+   * Načítaj obrázky projektu z backendu
+   */
+  const loadProjectImages = async () => {
+    if (!token) return;
+    
+    setIsLoading(true);
+    const result = await api.getProjectImages(id, token);
+    
+    if (result.data?.images) {
+      const backendImages = result.data.images.map((filename) => ({
+        id: filename,
+        uri: api.getProjectImageUrl(id, filename, token),
+        isFromBackend: true,
+      }));
+      setImages(backendImages);
+    }
+    setIsLoading(false);
+  };
+
+  /**
+   * Vyber obrázky a nahraj ich na backend
+   */
   const pickImages = async () => {
+    if (!token) {
+      Alert.alert('Chyba', 'Musíš byť prihlásený');
+      return;
+    }
+
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Permission', 'Please allow access to photos.');
+      Alert.alert('Povolenie', 'Prosím, dovolí prístup k fotám.');
       return;
     }
 
@@ -58,12 +97,57 @@ export default function ProjectEditScreen() {
     });
 
     if (!result.canceled) {
-      setImages((prev) => [...prev, ...result.assets.map(a => ({ uri: a.uri }))]);
+      uploadImages(result.assets);
     }
   };
 
-  const removeImage = (uri: string) => {
-    setImages((prev) => prev.filter((x) => x.uri !== uri));
+  /**
+   * Nahraj obrázky na backend
+   */
+  const uploadImages = async (assets: any[]) => {
+    setIsUploading(true);
+    let uploadedCount = 0;
+
+    for (const asset of assets) {
+      try {
+        // Prekonvertuj URI na File objekt
+        const response = await fetch(asset.uri);
+        const blob = await response.blob();
+        const file = new File([blob], asset.fileName || 'image.jpg', {
+          type: blob.type,
+        });
+
+        const uploadResult = await api.uploadProjectImage(id, file, token!);
+
+        if (uploadResult.data && uploadResult.data.filename) {
+          // Pridaj obrázok do zoznamu
+          setImages((prev) => [
+            ...prev,
+            {
+              id: uploadResult.data!.filename,
+              uri: api.getProjectImageUrl(id, uploadResult.data!.filename, token!),
+              isFromBackend: true,
+            },
+          ]);
+          uploadedCount++;
+        }
+      } catch (error) {
+        console.error('Upload error:', error);
+      }
+    }
+
+    setIsUploading(false);
+    if (uploadedCount > 0) {
+      Alert.alert(
+        'Úspech',
+        `${uploadedCount} obrázkov bolo nahraných`
+      );
+    }
+  };
+
+  const removeImage = async (imageId: string, isFromBackend: boolean) => {
+    // TODO: Implementuj vymazanie obrázka z backendu
+    setImages((prev) => prev.filter((x) => x.id !== imageId));
   };
 
   const goHome = () => router.replace('/main');
@@ -108,11 +192,15 @@ export default function ProjectEditScreen() {
       />
 
       <Pressable
-        style={[styles.uploadBtn, { backgroundColor: colors.secondary }]}
+        style={[
+          styles.uploadBtn,
+          { backgroundColor: colors.secondary, opacity: isUploading ? 0.6 : 1 },
+        ]}
         onPress={pickImages}
+        disabled={isUploading}
       >
         <Text style={[styles.uploadText, { color: colors.buttonText }]}>
-          Upload files
+          {isUploading ? 'Uploading...' : 'Upload files'}
         </Text>
       </Pressable>
 
@@ -120,14 +208,17 @@ export default function ProjectEditScreen() {
         Uploaded: {images.length}
       </Text>
 
-      <FlatList
+      {isLoading ? (
+        <ActivityIndicator size="large" color={colors.textPrimary} />
+      ) : (
+        <FlatList
         data={images}
-        keyExtractor={(item) => item.uri}
+        keyExtractor={(item) => item.id}
         numColumns={3}
         contentContainerStyle={styles.grid}
         renderItem={({ item }) => (
           <Pressable
-            onLongPress={() => removeImage(item.uri)}
+            onLongPress={() => removeImage(item.id, item.isFromBackend || false)}
             style={styles.thumbWrap}
           >
             <Image
@@ -145,6 +236,7 @@ export default function ProjectEditScreen() {
           </Text>
         }
       />
+      )}
 
       {/* FOOTER */}
       <View style={styles.footer}>

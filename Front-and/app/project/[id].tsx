@@ -5,6 +5,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 
 import { layout } from '../../src/theme/layout';
 import AppButton from '../../src/components/AppButton';
+import { ThreeDViewer } from '../../src/components/ThreeDViewer';
 import { useColors } from '../../src/theme/ColorsProvider';
 import { useAuth } from '../../src/context/AuthContext';
 import * as apiClient from '../../src/api/client';
@@ -15,7 +16,9 @@ export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
 
   const [project, setProject] = useState<apiClient.Project | null>(null);
+  const [model3D, setModel3D] = useState<apiClient.Model3DInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingModel, setLoadingModel] = useState(false);
 
   useEffect(() => {
     loadProject();
@@ -32,6 +35,8 @@ export default function ProjectDetailScreen() {
       const response = await apiClient.getProject(id, token);
       if (response.data) {
         setProject(response.data);
+        // Skontroluj 3D model
+        load3DModel(id, token);
       } else {
         Alert.alert('Chyba', response.error || 'Nepodarilo sa načítať projekt');
       }
@@ -40,6 +45,30 @@ export default function ProjectDetailScreen() {
       Alert.alert('Chyba', error instanceof Error ? error.message : 'Neznáma chyba');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const load3DModel = async (projectId: string, userToken: string) => {
+    try {
+      setLoadingModel(true);
+      console.log(`[PROJECT] Checking 3D model for project: ${projectId}`);
+      const response = await apiClient.check3DModel(projectId, userToken);
+      console.log('[PROJECT] 3D Model check response:', response);
+      if (response.data) {
+        console.log(`[PROJECT] 3D Model info:`, response.data);
+        setModel3D(response.data);
+        if (response.data.exists) {
+          console.log(`[PROJECT] ✅ 3D Model exists - URL will be: ${apiClient.get3DModelUrl(projectId, userToken)}`);
+        } else {
+          console.log(`[PROJECT] ℹ️ No 3D model for this project yet`);
+        }
+      } else {
+        console.warn('[PROJECT] No data in response:', response.error);
+      }
+    } catch (error) {
+      console.error('[PROJECT] Error loading 3D model:', error);
+    } finally {
+      setLoadingModel(false);
     }
   };
 
@@ -83,20 +112,47 @@ export default function ProjectDetailScreen() {
               <Text style={[styles.title, { color: colors.textPrimary }]}>{projectName}</Text>
             </View>
 
-            {/* PREVIEW IMAGE */}
-            <View
-              style={[
-                styles.imageWrapper,
-                { backgroundColor: colors.card, borderColor: colors.cardBorder },
-                imageStyle,
-              ]}
-            >
-              <Image
-                source={require('../../src/assets/sample-room.png')}
-                style={styles.roomImage}
-                resizeMode="cover"
-              />
-            </View>
+            {/* 3D MODEL OR IMAGE */}
+            {loadingModel ? (
+              <View
+                style={[
+                  styles.imageWrapper,
+                  { backgroundColor: colors.card, borderColor: colors.cardBorder },
+                  imageStyle,
+                ]}
+              >
+                <ActivityIndicator size="large" color={colors.textPrimary} />
+              </View>
+            ) : model3D?.exists ? (
+              <View
+                style={[
+                  styles.imageWrapper,
+                  { borderColor: colors.cardBorder },
+                  imageStyle,
+                ]}
+              >
+                <ThreeDViewer
+                  modelUrl={apiClient.get3DModelUrl(id || '', token || '')}
+                  token={token || ''}
+                  width={imageStyle.width}
+                  height={imageStyle.height}
+                />
+              </View>
+            ) : (
+              <View
+                style={[
+                  styles.imageWrapper,
+                  { backgroundColor: colors.card, borderColor: colors.cardBorder },
+                  imageStyle,
+                ]}
+              >
+                <Image
+                  source={require('../../src/assets/sample-room.png')}
+                  style={styles.roomImage}
+                  resizeMode="cover"
+                />
+              </View>
+            )}
 
             {/* INFO CARD */}
             <View
@@ -106,11 +162,18 @@ export default function ProjectDetailScreen() {
               ]}
             >
               <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>
-                Object in room:
+                Status:
               </Text>
               <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-                1x TV, 2x Sofa, 4x Table, 1x Plant, ...
+                {model3D?.exists ? '✅ 3D Model dostupný' : '📷 Fotky projektu'}
               </Text>
+              {project && (
+                <>
+                  <Text style={[styles.infoText, { color: colors.textSecondary, marginTop: 8 }]}>
+                    Fotky: {project.image_count}
+                  </Text>
+                </>
+              )}
             </View>
 
             {/* BUTTONS */}

@@ -92,13 +92,18 @@ export default function ProjectNewScreen() {
       // 2. Nahraj obrázky
       setUploading(true);
       let successCount = 0;
+      let failedCount = 0;
+      const failedImages: string[] = [];
 
-      for (const image of images) {
+      for (let i = 0; i < images.length; i++) {
+        const image = images[i];
         try {
+          console.log(`[${i + 1}/${images.length}] Nahrávam obrázok...`);
+          
           // Konvertuj URI na File
           const response = await fetch(image.uri);
           const blob = await response.blob();
-          const file = new File([blob], `image.jpg`, { type: 'image/jpeg' });
+          const file = new File([blob], `image-${i + 1}.jpg`, { type: 'image/jpeg' });
 
           const uploadResponse = await apiClient.uploadProjectImage(
             projectId,
@@ -107,17 +112,31 @@ export default function ProjectNewScreen() {
           );
 
           if (uploadResponse.data) {
+            console.log(`✓ Obrázok ${i + 1} úspešne nahraný:`, uploadResponse.data.filename);
             successCount++;
+          } else {
+            console.error(`✗ Chyba pri nahraní obrázka ${i + 1}:`, uploadResponse.error);
+            failedImages.push(`Obrázok ${i + 1}: ${uploadResponse.error}`);
+            failedCount++;
           }
         } catch (err) {
-          console.error('Image upload error:', err);
+          console.error(`✗ Exception pri obrázku ${i + 1}:`, err);
+          failedImages.push(`Obrázok ${i + 1}: ${err instanceof Error ? err.message : 'Neznáma chyba'}`);
+          failedCount++;
         }
       }
 
       setUploading(false);
+      console.log(`✓ Priebeh: ${successCount} OK, ${failedCount} FAILED z ${images.length} obrázkov`);
+      
+      let statusMessage = `Úspech! ${successCount}/${images.length} obrázkov nahraných.`;
+      if (failedCount > 0) {
+        statusMessage += `\n\n❌ Zlyhalo: ${failedCount}\n${failedImages.join('\n')}`;
+      }
+      
       Alert.alert(
-        'Úspech',
-        `Projekt vytvorený! ${successCount}/${images.length} obrázkov nahraných.`
+        successCount === images.length ? 'Úspech' : 'Čiastočný úspech',
+        statusMessage
       );
 
       // Presmeruj na generate alebo project detail

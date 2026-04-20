@@ -94,9 +94,9 @@ Back-end/
 ├── auth.py                # Autentifikačné funkcie
 ├── routers/
 │   ├── auth.py            # Auth endpointy
-│   └── projects.py        # Project endpointy
-├── projects/              # Priečinok na obrázky projektov
-│   └── {user_id}/{project_id}/images/
+│   ├── projects.py        # Project endpointy
+│   └── projects/          # Priečinok na obrázky projektov
+│       └── {user_id}/{project_id}/images/
 ├── requirements.txt       # Python dependencies
 ├── .env                   # Konfigurácia prostredí
 ├── init_db.py            # Skript na inicializáciu DB
@@ -158,8 +158,17 @@ Content-Type: multipart/form-data
 
 Backend uloží obrázok na:
 ```
-Back-end/projects/{user_id}/{project_id}/images/{filename}.jpg
+Back-end/routers/projects/{user_id}/{project_id}/images/{filename}.jpg
 ```
+
+### 4. Stiahnutie Obrázku
+
+```bash
+GET /api/projects/{project_id}/images/{filename}
+Authorization: Bearer <access_token>
+```
+
+Vráti obrázok vo formáte JPEG.
 
 ## Troubleshooting
 

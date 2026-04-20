@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Header
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
@@ -195,12 +196,15 @@ async def upload_image(
 ):
     """Nahraj obrázok do projektu"""
     
+    print(f"\n📤 UPLOAD STARTED - File: {file.filename}, ContentType: {file.content_type}")
+    
     project = db.query(Project).filter(
         Project.id == project_id,
         Project.user_id == current_user.id
     ).first()
     
     if not project:
+        print(f"❌ Projekt {project_id} nenájdený")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Projekt nenájdený"
@@ -208,33 +212,57 @@ async def upload_image(
     
     # Validácia formátu obrázka
     if file.content_type not in ["image/jpeg", "image/png", "image/webp"]:
+        print(f"❌ Nepovolený formát: {file.content_type}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Iba JPEG, PNG a WebP obrázky sú povolené"
         )
     
-    # Načítaj obrázok
-    content = await file.read()
-    img = Image.open(io.BytesIO(content))
+    try:
+        # Načítaj obrázok
+        content = await file.read()
+        print(f"✓ Súbor načítaný: {len(content)} bytes")
+        
+        img = Image.open(io.BytesIO(content))
+        print(f"✓ Obrázok parsnutý: {img.format}, {img.size}")
+        
+        # Vytvor priečinok ak neexistuje
+        images_dir = PROJECTS_DIR / str(current_user.id) / str(project_id) / "images"
+        images_dir.mkdir(parents=True, exist_ok=True)
+        print(f"✓ Priečinok existuje: {images_dir}")
+        
+        # Ulož obrázok
+        filename = f"{uuid.uuid4()}.jpg"
+        filepath = images_dir / filename
+        img.save(filepath, format="JPEG", quality=95)
+        print(f"✓ Obrázok uložený: {filepath}")
+        
+        # Aktualizuj počet obrázkov
+        old_count = project.image_count
+        project.image_count += 1
+        db.commit()
+        db.refresh(project)
+        print(f"✓ DB aktualizovaná: {old_count} → {project.image_count}")
+        
+        # Overuj či súbor existuje
+        if filepath.exists():
+            file_size = filepath.stat().st_size
+            print(f"✓ Súbor verifikovaný ({file_size} bytes)\n")
+        else:
+            print(f"❌ Súbor sa neuložil!\n")
+        
+        return {
+            "filename": filename,
+            "filepath": str(filepath),
+            "image_count": project.image_count
+        }
     
-    # Vytvor priečinok ak neexistuje
-    images_dir = PROJECTS_DIR / str(current_user.id) / str(project_id) / "images"
-    images_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Ulož obrázok
-    filename = f"{uuid.uuid4()}.jpg"
-    filepath = images_dir / filename
-    img.save(filepath, format="JPEG", quality=95)
-    
-    # Aktualizuj počet obrázkov
-    project.image_count += 1
-    db.commit()
-    
-    return {
-        "filename": filename,
-        "filepath": str(filepath),
-        "image_count": project.image_count
-    }
+    except Exception as e:
+        print(f"❌ CHYBA pri uploadovaní: {str(e)}\n")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Chyba pri ukladaní obrázka: {str(e)}"
+        )
 
 @router.get("/{project_id}/images", response_model=dict)
 async def get_project_images(
@@ -244,6 +272,45 @@ async def get_project_images(
 ):
     """Získaj všetky obrázky projektu"""
     
+    print(f"\n📂 GET IMAGES - Project: {project_id}, User: {current_user.id}")
+    
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.user_id == current_user.id
+    ).first()
+    
+    if not project:
+        print(f"❌ Projekt nenájdený")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Projekt nenájdený"
+        )
+    
+    images_dir = PROJECTS_DIR / str(current_user.id) / str(project_id) / "images"
+    print(f"   Cesta: {images_dir}")
+    print(f"   DB image_count: {project.image_count}")
+    
+    if not images_dir.exists():
+        print(f"   ⚠️  Priečinok neexistuje")
+        return {"images": []}
+    
+    images = [f.name for f in images_dir.glob("*.jpg")]
+    print(f"   ✓ Nájdené obrázky: {len(images)}")
+    for img in images[:5]:  # Ukáž prvých 5
+        print(f"     - {img}")
+    
+    print()
+    return {"images": images}
+
+@router.get("/{project_id}/images/{filename}")
+async def get_image(
+    project_id: str,
+    filename: str,
+    current_user: User = Depends(get_current_user_from_header),
+    db: Session = Depends(get_db)
+):
+    """Stiahni konkrétny obrázok projektu"""
+    
     project = db.query(Project).filter(
         Project.id == project_id,
         Project.user_id == current_user.id
@@ -255,11 +322,114 @@ async def get_project_images(
             detail="Projekt nenájdený"
         )
     
-    images_dir = PROJECTS_DIR / str(current_user.id) / str(project_id) / "images"
+    # Bezpečnosť - zabráň path traversal útokom
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Neplatný názov súboru"
+        )
     
-    if not images_dir.exists():
-        return {"images": []}
+    filepath = PROJECTS_DIR / str(current_user.id) / str(project_id) / "images" / filename
     
-    images = [f.name for f in images_dir.glob("*.jpg")]
+    if not filepath.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Obrázok nenájdený"
+        )
     
-    return {"images": images}
+    return FileResponse(filepath, media_type="image/jpeg")
+
+@router.get("/{project_id}/3d-model", response_model=dict)
+async def get_3d_model_info(
+    project_id: str,
+    current_user: User = Depends(get_current_user_from_header),
+    db: Session = Depends(get_db)
+):
+    """Skontroluj či existuje 3D model pre projekt"""
+    
+    print(f"\n🔍 CHECK 3D MODEL - Project: {project_id}")
+    
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.user_id == current_user.id
+    ).first()
+    
+    if not project:
+        print(f"❌ Projekt nenájdený")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Projekt nenájdený"
+        )
+    
+    # Skontroluj či existuje priečinok 3Dmodel
+    model_dir = PROJECTS_DIR / str(current_user.id) / str(project_id) / "3Dmodel"
+    model_file = model_dir / "model.ply"
+    
+    print(f"   Hľadám: {model_file}")
+    
+    if model_file.exists():
+        file_size = model_file.stat().st_size
+        print(f"   ✓ 3D Model nájdený! Veľkosť: {file_size} bytes\n")
+        return {
+            "exists": True,
+            "filename": "model.ply",
+            "size": file_size,
+            "url": f"/api/projects/{project_id}/3d-model/download"
+        }
+    else:
+        print(f"   ❌ 3D Model neexistuje\n")
+        return {"exists": False}
+
+@router.get("/{project_id}/3d-model/download")
+async def download_3d_model(
+    project_id: str,
+    token: Optional[str] = None,
+    current_user: User = Depends(get_current_user_from_header),
+    db: Session = Depends(get_db)
+):
+    """Stiahni 3D model"""
+    
+    print(f"\n📥 DOWNLOAD 3D MODEL - Project: {project_id}")
+    
+    # Ak je token v query params, overov ho
+    if token:
+        token_data = verify_token(token)
+        if token_data is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Neplatný token"
+            )
+        user = db.query(User).filter(User.id == token_data.user_id).first()
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Používateľ nenájdený"
+            )
+        current_user = user
+    
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.user_id == current_user.id
+    ).first()
+    
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Projekt nenájdený"
+        )
+    
+    model_file = PROJECTS_DIR / str(current_user.id) / str(project_id) / "3Dmodel" / "model.ply"
+    
+    if not model_file.exists():
+        print(f"   ❌ Model neexistuje\n")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="3D Model nenájdený"
+        )
+    
+    print(f"   ✓ Odesielam: {model_file}\n")
+    return FileResponse(
+        model_file,
+        media_type="application/octet-stream",
+        filename="model.ply"
+    )

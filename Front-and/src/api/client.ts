@@ -272,6 +272,52 @@ export async function getProjectImages(
   });
 }
 
+/**
+ * Vytvor URL na stiahnutie obrázka
+ */
+export function getProjectImageUrl(
+  projectId: string,
+  filename: string,
+  token: string
+): string {
+  return `${API_BASE_URL}/api/projects/${projectId}/images/${filename}?token=${token}`;
+}
+
+// ============================================
+// 3D MODEL ENDPOINTS
+// ============================================
+
+export interface Model3DInfo {
+  exists: boolean;
+  filename?: string;
+  size?: number;
+  url?: string;
+}
+
+/**
+ * Skontroluj či existuje 3D model
+ */
+export async function check3DModel(
+  projectId: string,
+  token: string
+): Promise<ApiResponse<Model3DInfo>> {
+  return apiCall(`/api/projects/${projectId}/3d-model`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+/**
+ * Vráť URL na stiahnutie 3D modelu
+ */
+export function get3DModelUrl(
+  projectId: string,
+  token: string
+): string {
+  return `${API_BASE_URL}/api/projects/${projectId}/3d-model/download?token=${token}`;
+}
+
 // ============================================
 // UTILITY FUNCTIONS
 // ============================================
