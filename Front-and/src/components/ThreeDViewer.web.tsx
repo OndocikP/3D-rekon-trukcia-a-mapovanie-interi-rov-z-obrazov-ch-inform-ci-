@@ -267,25 +267,89 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ modelUrl, token, wid
           const geometry = parsePLY(buffer);
           
           if (geometry) {
-            const material = new THREE.MeshPhongMaterial({ 
-              side: THREE.DoubleSide,
+            const material = new THREE.PointsMaterial({ 
+              size: 0.5,
               vertexColors: true,
-              specular: 0x444444,
-              shininess: 100,
-              wireframe: false,
-              flatShading: false 
+              sizeAttenuation: true
             });
-            const mesh = new THREE.Mesh(geometry, material);
-            geometry.computeBoundingBox();
+            const points = new THREE.Points(geometry, material);
+            
+            // Získaj pozície bodov
+            const positionAttribute = geometry.getAttribute('position');
+            const positions = positionAttribute.array as Float32Array;
+            
+            // Vypočítaj priemer pozícií
+            let sumX = 0, sumY = 0, sumZ = 0;
+            for (let i = 0; i < positions.length; i += 3) {
+              sumX += positions[i];
+              sumY += positions[i + 1];
+              sumZ += positions[i + 2];
+            }
+            const avgX = sumX / (positions.length / 3);
+            const avgY = sumY / (positions.length / 3);
+            const avgZ = sumZ / (positions.length / 3);
+            
+            // Vypočítaj štandardnú odchýlku a odstráň outliers
+            let sumDistSq = 0;
+            for (let i = 0; i < positions.length; i += 3) {
+              const dx = positions[i] - avgX;
+              const dy = positions[i + 1] - avgY;
+              const dz = positions[i + 2] - avgZ;
+              sumDistSq += dx * dx + dy * dy + dz * dz;
+            }
+            const stdDev = Math.sqrt(sumDistSq / (positions.length / 3));
+            const threshold = avgX !== 0 || avgY !== 0 || avgZ !== 0 ? stdDev * 2 : 1e10;
+            
+            // Vytvor nové pole bez outliers
+            const filteredPositions = [];
+            const filteredColors = [];
+            let colorAttribute = geometry.getAttribute('color');
+            const colors = colorAttribute ? (colorAttribute.array as Float32Array) : null;
+            
+            for (let i = 0; i < positions.length; i += 3) {
+              const dx = positions[i] - avgX;
+              const dy = positions[i + 1] - avgY;
+              const dz = positions[i + 2] - avgZ;
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              
+              // Zahrň bod len ak nie je príliš ďaleko
+              if (dist <= threshold) {
+                filteredPositions.push(positions[i], positions[i + 1], positions[i + 2]);
+                if (colors) {
+                  filteredColors.push(colors[i], colors[i + 1], colors[i + 2]);
+                }
+              }
+            }
+            
+            // Vytvor novú geometriu s odfiltovanými dátami
+            const newGeometry = new THREE.BufferGeometry();
+            newGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(filteredPositions), 3));
+            if (filteredColors.length > 0) {
+              newGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(filteredColors), 3));
+            }
+            
+            // Vypočítaj nový stred bez outliers
+            newGeometry.computeBoundingBox();
             const center = new THREE.Vector3();
-            geometry.boundingBox!.getCenter(center);
-            geometry.translate(-center.x, -center.y, -center.z);
-            const size = geometry.boundingBox!.getSize(new THREE.Vector3());
+            newGeometry.boundingBox!.getCenter(center);
+            
+            // Preloží geometriu tak, aby bol jej stred v počiatku (0,0,0)
+            newGeometry.translate(-center.x, -center.y, -center.z);
+            // Otáči model o 180 stupňov okolo osi X
+            newGeometry.rotateX(Math.PI);
+            
+            const size = newGeometry.boundingBox!.getSize(new THREE.Vector3());
             const maxDim = Math.max(size.x, size.y, size.z);
             const scale = 50 / maxDim;
-            geometry.scale(scale, scale, scale);
-            scene.add(mesh);
-            controls.target.copy(center);
+            newGeometry.scale(scale, scale, scale);
+            
+            points.geometry = newGeometry;
+            scene.add(points);
+            
+            // Nastavuje bod rotácie na stred modelu (0,0,0)
+            controls.target.set(0, 0, 0);
+            controls.autoRotateSpeed = 1.5;
+            controls.dampingFactor = 0.02;
             camera.position.z = maxDim * 1.5;
             controls.update();
             loadingDiv.style.display = 'none';
