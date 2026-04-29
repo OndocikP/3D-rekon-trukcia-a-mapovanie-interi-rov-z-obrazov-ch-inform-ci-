@@ -37,6 +37,7 @@ class Project(Base):
     status = Column(SQLEnum(ProjectStatus), default=ProjectStatus.pending)
     description = Column(String(500))
     image_count = Column(Integer, default=0)
+    objects = Column(String(500), default="")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

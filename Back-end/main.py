@@ -9,7 +9,12 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="3D Rekon Backend")
 
-# CORS konfigurácia
+# Zaregistruj routery
+app.include_router(auth.router)
+app.include_router(projects.router)
+app.include_router(admin.router)
+
+# CORS konfigurácia - MUSÍ BYŤ NA KONCI (posledný pridaný = prvý spustený)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -22,11 +27,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Zaregistruj routery
-app.include_router(auth.router)
-app.include_router(projects.router)
-app.include_router(admin.router)
 
 @app.get("/")
 async def root():

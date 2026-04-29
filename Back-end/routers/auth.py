@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
 from sqlalchemy.orm import Session
 from datetime import timedelta
 from models import User
@@ -13,7 +13,7 @@ from config import settings
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.post("/register", response_model=UserResponse)
-async def register(user: UserCreate, db: Session = Depends(get_db)):
+async def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     """Registrácia nového používateľa"""
     
     # Skontroluj, či používateľ existuje
@@ -81,7 +81,7 @@ async def admin_login(credentials: LoginRequest, db: Session = Depends(get_db)):
         )
     
     # Skontroluj či je admin
-    if str(user.role) != "admin":
+    if user.role.value != "admin" and str(user.role) != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Nemáš práva na prístup do admin panelu"

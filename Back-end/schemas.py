@@ -29,11 +29,13 @@ class UserResponse(UserBase):
 class ProjectCreate(BaseModel):
     project_name: str
     description: Optional[str] = None
+    objects: Optional[str] = None
 
 class ProjectUpdate(BaseModel):
     project_name: Optional[str] = None
     description: Optional[str] = None
     status: Optional[ProjectStatus] = None
+    objects: Optional[str] = None
 
 class ProjectResponse(BaseModel):
     id: str
@@ -41,6 +43,7 @@ class ProjectResponse(BaseModel):
     status: ProjectStatus
     description: Optional[str]
     image_count: int
+    objects: str = ""
     created_at: datetime
     updated_at: datetime
     

@@ -1,12 +1,55 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 from database import SessionLocal, get_db
 from models import User, Project
 from schemas import UserResponse, ProjectResponse
 from typing import List, Dict, Any
+from auth import verify_token
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+# Dependency na overenie admin prístupu
+def get_current_admin_user(authorization: str = Header(None), db: Session = Depends(get_db)):
+    """Overí, či je používateľ prihlásený a má admin rolu"""
+    
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header nie je poskytnutý"
+        )
+    
+    # Extrahovať token z "Bearer <token>"
+    try:
+        token = authorization.split(" ")[1]
+    except IndexError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Neplatný Authorization header format"
+        )
+    
+    token_data = verify_token(token)
+    if token_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Neplatný token"
+        )
+    
+    user = db.query(User).filter(User.id == token_data.user_id).first()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Používateľ nenájdený"
+        )
+    
+    # Skontroluj, či je admin
+    if user.role.value != "admin" and str(user.role) != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nemáš práva na prístup do admin panelu"
+        )
+    
+    return user
 
 # ============================================
 # DATABÁZOVÉ ENDPOINTS
@@ -75,13 +118,13 @@ async def delete_row(table_name: str, row_id: int, db: Session = Depends(get_db)
 # ============================================
 
 @router.get("/users", response_model=List[UserResponse])
-async def get_all_users(db: Session = Depends(get_db)):
+async def get_all_users(current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
     """Zoznam všetkých užívateľov s počtom ich projektov"""
     users = db.query(User).all()
     return users
 
 @router.get("/users/{user_id}")
-async def get_user_with_projects(user_id: str, db: Session = Depends(get_db)):
+async def get_user_with_projects(user_id: str, current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
     """Detaily konkrétneho užívateľa s jeho projektami"""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -110,7 +153,7 @@ async def get_user_with_projects(user_id: str, db: Session = Depends(get_db)):
     }
 
 @router.get("/stats")
-async def get_admin_stats(db: Session = Depends(get_db)):
+async def get_admin_stats(current_user: User = Depends(get_current_admin_user), db: Session = Depends(get_db)):
     """Štatistika pre admin dashboard"""
     total_users = db.query(User).count()
     total_projects = db.query(Project).count()

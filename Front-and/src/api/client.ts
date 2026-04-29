@@ -130,6 +130,7 @@ export interface Project {
   status: "pending" | "generating" | "generated" | "failed";
   description?: string;
   image_count: number;
+  objects?: string;
   created_at: string;
   updated_at: string;
 }
@@ -137,12 +138,14 @@ export interface Project {
 export interface CreateProjectData {
   project_name: string;
   description?: string;
+  objects?: string;
 }
 
 export interface UpdateProjectData {
   project_name?: string;
   description?: string;
   status?: "pending" | "generating" | "generated" | "failed";
+  objects?: string;
 }
 
 /**

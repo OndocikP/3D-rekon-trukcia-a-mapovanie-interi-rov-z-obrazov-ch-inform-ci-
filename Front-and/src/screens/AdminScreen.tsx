@@ -33,26 +33,51 @@ export default function AdminScreen() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(false);
   const { colors } = useColors();
-  const { logout } = useAuth();
+  const { logout, token } = useAuth();
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (token) {
+      fetchData();
+    }
+  }, [token]);
 
   const fetchData = async () => {
+    if (!token) {
+      Alert.alert('Chyba', 'Token nie je dostupný');
+      return;
+    }
+
     setLoading(true);
     try {
       // Načítaj užívateľov
-      const usersRes = await fetch(`${API_URL}/api/admin/users`);
+      const usersRes = await fetch(`${API_URL}/api/admin/users`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!usersRes.ok) {
+        throw new Error(`Chyba pri načítaní užívateľov: ${usersRes.status}`);
+      }
       const usersData = await usersRes.json();
       setUsers(usersData);
 
       // Načítaj štatistiku
-      const statsRes = await fetch(`${API_URL}/api/admin/stats`);
+      const statsRes = await fetch(`${API_URL}/api/admin/stats`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!statsRes.ok) {
+        throw new Error(`Chyba pri načítaní štatistiky: ${statsRes.status}`);
+      }
       const statsData = await statsRes.json();
       setStats(statsData);
     } catch (error) {
-      Alert.alert('Chyba', 'Nemôžem načítať dáta');
+      Alert.alert('Chyba', `Nemôžem načítať dáta: ${error}`);
       console.error(error);
     } finally {
       setLoading(false);
@@ -118,7 +143,7 @@ export default function AdminScreen() {
       )}
 
       {/* Projekty podľa statusu */}
-      {stats && (
+      {stats && stats.projects_by_status && Object.keys(stats.projects_by_status).length > 0 && (
         <View style={styles.statusSection}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Projekty podľa statusu</Text>
           <View style={styles.statusGrid}>

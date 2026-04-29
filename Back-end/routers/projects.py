@@ -78,7 +78,8 @@ async def create_project(
     db_project = Project(
         user_id=current_user.id,
         project_name=project.project_name,
-        description=project.description
+        description=project.description,
+        objects=project.objects or ""
     )
     db.add(db_project)
     db.commit()
@@ -151,6 +152,8 @@ async def update_project(
         project.description = update_data.description
     if update_data.status:
         project.status = update_data.status
+    if update_data.objects is not None:
+        project.objects = update_data.objects
     
     db.commit()
     db.refresh(project)

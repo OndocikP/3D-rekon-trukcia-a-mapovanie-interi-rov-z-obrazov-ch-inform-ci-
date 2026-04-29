@@ -166,11 +166,17 @@ export default function ProjectDetailScreen() {
               </Text>
               <Text style={[styles.infoText, { color: colors.textSecondary }]}>
                 {model3D?.exists ? '✅ 3D Model dostupný' : '📷 Fotky projektu'}
+                {project && model3D?.exists && `\t Fotky: ${project.image_count}`}
               </Text>
               {project && (
                 <>
-                  <Text style={[styles.infoText, { color: colors.textSecondary, marginTop: 8 }]}>
-                    Fotky: {project.image_count}
+                  <Text style={[styles.infoTitle, { color: colors.textPrimary, marginTop: 8 }]}>
+                    Object in room:
+                  </Text>
+                  <Text style={[styles.infoText, { color: colors.textSecondary, marginTop: 4 }]}>
+                    {project.objects && project.objects !== '' 
+                      ? `Objekty: ${project.objects}` 
+                      : "Object recognition hasn't been started yet."}
                   </Text>
                 </>
               )}

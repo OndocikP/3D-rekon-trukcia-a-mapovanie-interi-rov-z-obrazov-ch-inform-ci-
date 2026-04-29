@@ -3,6 +3,7 @@ import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Alert, FlatList 
 import { router, useLocalSearchParams } from 'expo-router';
 import { useColors } from '../theme/ColorsProvider';
 import AppButton from '../components/AppButton';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Project {
   id: string;
@@ -39,7 +40,23 @@ export default function AdminUserScreen() {
 
   const fetchUserData = async (userId: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/admin/users/${userId}`);
+      // Načítaj token z AsyncStorage
+      const token = await AsyncStorage.getItem('authToken');
+      
+      if (!token) {
+        Alert.alert('Chyba', 'Nemáš oprávnenie pristúpiť');
+        router.back();
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/api/admin/users/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
       if (res.ok) {
         const data = await res.json();
         setUser(data);
