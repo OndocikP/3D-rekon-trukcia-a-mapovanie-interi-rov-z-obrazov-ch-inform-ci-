@@ -8,12 +8,15 @@ import {
   Image,
   FlatList,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 
 import { useColors } from '../theme/ColorsProvider';
+import { useAuth } from '../context/AuthContext';
+import * as apiClient from '../api/client';
 
 type PickedImage = {
   uri: string;
@@ -21,7 +24,7 @@ type PickedImage = {
 
 export default function ProjectFormScreen() {
   const { colors } = useColors();
-  
+  const { token } = useAuth();
 
   const params = useLocalSearchParams<{
     id?: string;
@@ -34,6 +37,7 @@ export default function ProjectFormScreen() {
 
   const [projectName, setProjectName] = useState('');
   const [images, setImages] = useState<PickedImage[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (params.name) setProjectName(String(params.name));
@@ -75,6 +79,42 @@ export default function ProjectFormScreen() {
     setImages((prev) => prev.filter((x) => x.uri !== uri));
 
   const goHome = () => router.replace('/main');
+
+  const handleDeleteProject = () => {
+    Alert.alert(
+      '⚠️  Removing project',
+      `Are you sure you want to remove "${projectName}"? This action cannot be undone. All images and data will be deleted.`,
+      [
+        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+        {
+          text: 'Delete',
+          onPress: async () => {
+            if (!token || !projectId) {
+              Alert.alert('Error', 'Missing token or project ID');
+              return;
+            }
+
+            setIsDeleting(true);
+            try {
+              const response = await apiClient.deleteProject(projectId, token);
+              if (response.error) {
+                Alert.alert('Error', response.error);
+              } else {
+                Alert.alert('Success', 'Project removed successfully', [
+                  { text: 'OK', onPress: () => goHome() },
+                ]);
+              }
+            } catch (err) {
+              Alert.alert('Error', err instanceof Error ? err.message : 'Failed to delete project');
+            } finally {
+              setIsDeleting(false);
+            }
+          },
+          style: 'destructive',
+        },
+      ]
+    );
+  };
 
   const goGenerate = () => {
     router.push({
@@ -158,6 +198,23 @@ export default function ProjectFormScreen() {
           </Text>
         }
       />
+
+      {/* DELETE PROJECT BUTTON - only in edit mode */}
+      {isEditMode && (
+        <Pressable
+          style={[styles.deleteBtn, { backgroundColor: '#dc2626' }]}
+          onPress={handleDeleteProject}
+          disabled={isDeleting}
+        >
+          {isDeleting ? (
+            <ActivityIndicator size="small" color="white" />
+          ) : (
+            <Text style={[styles.deleteBtnText, { color: '#ffffff' }]}>
+              🗑️  Remove project
+            </Text>
+          )}
+        </Pressable>
+      )}
 
       {/* FOOTER */}
       <View style={styles.footer}>
@@ -243,6 +300,16 @@ const styles = StyleSheet.create({
   emptyText: {
     marginTop: 10,
     textAlign: 'center',
+  },
+  deleteBtn: {
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  deleteBtnText: {
+    fontWeight: '700',
   },
   footer: {
     position: 'absolute',

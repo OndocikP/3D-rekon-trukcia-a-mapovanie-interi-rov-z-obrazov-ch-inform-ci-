@@ -45,6 +45,43 @@ def get_current_user_from_header(authorization: Optional[str] = Header(None), db
     
     return user
 
+def get_current_user_flexible(
+    authorization: Optional[str] = Header(None),
+    token: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Získaj aktuálneho používateľa z JWT tokena - z headeru alebo query parametra"""
+    
+    token_value = None
+    
+    # Skúš najprv header
+    if authorization and authorization.startswith("Bearer "):
+        token_value = authorization.split(" ")[1]
+    # Fallback na query parameter
+    elif token:
+        token_value = token
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token nie je poskytnutý"
+        )
+    
+    token_data = verify_token(token_value)
+    if token_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Neplatný token"
+        )
+    
+    user = db.query(User).filter(User.id == token_data.user_id).first()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Používateľ nenájdený"
+        )
+    
+    return user
+
 @router.post("/create", response_model=ProjectResponse)
 async def create_project(
     project: ProjectCreate,
@@ -309,10 +346,37 @@ async def get_project_images(
 async def get_image(
     project_id: str,
     filename: str,
-    current_user: User = Depends(get_current_user_from_header),
+    authorization: Optional[str] = Header(None),
+    token: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """Stiahni konkrétny obrázok projektu"""
+    
+    # Zisti ako bude autentifikácia - z headeru alebo query parametra
+    token_value = None
+    if authorization and authorization.startswith("Bearer "):
+        token_value = authorization.split(" ")[1]
+    elif token:
+        token_value = token
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token nie je poskytnutý"
+        )
+    
+    token_data = verify_token(token_value)
+    if token_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Neplatný token"
+        )
+    
+    current_user = db.query(User).filter(User.id == token_data.user_id).first()
+    if current_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Používateľ nenájdený"
+        )
     
     project = db.query(Project).filter(
         Project.id == project_id,

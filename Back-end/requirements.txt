@@ -12,4 +12,6 @@ email-validator==2.1.0
 pillow==10.1.0
 python-multipart==0.0.6
 ultralytics==8.0.226
-opencv-python==4.8.1.78
+opencv-python==4.10.0.84
+numpy<2
+torch==2.5.0

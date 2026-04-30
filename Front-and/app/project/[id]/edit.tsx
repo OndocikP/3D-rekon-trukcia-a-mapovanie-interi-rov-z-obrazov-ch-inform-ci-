@@ -48,6 +48,7 @@ export default function ProjectEditScreen() {
   const [images, setImages] = useState<ProjectImage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     setProjectName(initialName);
@@ -150,6 +151,53 @@ export default function ProjectEditScreen() {
     setImages((prev) => prev.filter((x) => x.id !== imageId));
   };
 
+  const handleDeleteProject = () => {
+    console.log('🗑️  handleDeleteProject called');
+    console.log('Token:', token ? 'Exists' : 'MISSING');
+    console.log('Project ID:', id);
+    console.log('Project Name:', projectName);
+    
+    // Na web platforme použi window.confirm namiesto Alert.alert
+    const confirmed = window.confirm(
+      `Are you sure you want to remove "${projectName}"?\n\nThis action cannot be undone. All images and data will be deleted permanently from the server.`
+    );
+    
+    if (!confirmed) {
+      console.log('User cancelled deletion');
+      return;
+    }
+
+    // Pokračuj v mazaní
+    deleteProjectConfirmed();
+  };
+
+  const deleteProjectConfirmed = async () => {
+    console.log('Delete confirmed - proceeding with deletion');
+    if (!token || !id) {
+      console.log('ERROR: Missing token or id');
+      window.alert('Error: Missing token or project ID');
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      console.log('Calling deleteProject API...');
+      const response = await api.deleteProject(id, token);
+      console.log('API Response:', response);
+      if (response.error) {
+        window.alert(`Error: ${response.error}`);
+      } else {
+        window.alert('Project removed successfully');
+        goHome();
+      }
+    } catch (err) {
+      console.error('Delete error:', err);
+      window.alert(`Error: ${err instanceof Error ? err.message : 'Failed to delete project'}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const goHome = () => router.replace('/main');
 
   const goGenerate = () => {
@@ -250,6 +298,20 @@ export default function ProjectEditScreen() {
         </Pressable>
 
         <Pressable
+          style={[styles.deleteFooterBtn, { backgroundColor: '#dc2626' }]}
+          onPress={handleDeleteProject}
+          disabled={isDeleting}
+        >
+          {isDeleting ? (
+            <ActivityIndicator size="small" color="white" />
+          ) : (
+            <Text style={[styles.footerBtnText, { color: '#ffffff' }]}>
+              Remove
+            </Text>
+          )}
+        </Pressable>
+
+        <Pressable
           style={[
             styles.footerBtn,
             {
@@ -261,7 +323,7 @@ export default function ProjectEditScreen() {
           disabled={!projectName.trim()}
         >
           <Text style={[styles.footerBtnText, { color: colors.buttonText }]}>
-            Generate
+            Save
           </Text>
         </Pressable>
       </View>
@@ -348,6 +410,14 @@ const styles = StyleSheet.create({
   },
 
   footerBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  deleteFooterBtn: {
     flex: 1,
     height: 46,
     borderRadius: 16,
