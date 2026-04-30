@@ -165,8 +165,9 @@ export default function ProjectDetailScreen() {
                 Status:
               </Text>
               <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-                {model3D?.exists ? '✅ 3D Model dostupný' : '📷 Fotky projektu'}
-                {project && model3D?.exists && `\t Fotky: ${project.image_count}`}
+                {model3D?.exists 
+                  ? `✅ 3D Model dostupný\t 📷Fotky: ${project?.image_count || 0}` 
+                  : `📷 Fotky projektu: ${project?.image_count || 0}`}
               </Text>
               {project && (
                 <>

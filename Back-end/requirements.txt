@@ -11,3 +11,5 @@ bcrypt==4.0.1
 email-validator==2.1.0
 pillow==10.1.0
 python-multipart==0.0.6
+ultralytics==8.0.226
+opencv-python==4.8.1.78
