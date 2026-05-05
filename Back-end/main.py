@@ -64,7 +64,7 @@ class AuthResponse(BaseModel):
     token: Optional[str] = None
 
 # ============================================
-# ENDPOINTY
+# HEALTH CHECK
 # ============================================
 
 @app.get("/health")
@@ -72,11 +72,14 @@ async def health():
     """Health check"""
     return {"status": "healthy"}
 
+# ============================================
+# AUTHENTICATION
+# ============================================
+
 @app.post("/api/auth/login", response_model=dict)
 async def login(request: LoginRequest):
     """Login používateľa - volá Supabase funkciu"""
     try:
-        # Volaj Supabase SQL funkciu
         response = supabase.rpc(
             'login_user',
             {'p_username': request.username, 'p_password': request.password}
@@ -104,7 +107,6 @@ async def login(request: LoginRequest):
 async def register(request: RegisterRequest):
     """Registrácia - volá Supabase funkciu"""
     try:
-        # Volaj Supabase SQL funkciu
         response = supabase.rpc(
             'register_user',
             {
@@ -131,6 +133,10 @@ async def register(request: RegisterRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+# ============================================
+# PROJECTS
+# ============================================
 
 @app.get("/api/projects/{user_id}")
 async def get_projects(user_id: str):
@@ -161,57 +167,8 @@ async def get_projects(user_id: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.post("/api/projects/create")
-async def create_project(request: CreateProjectRequest, authorization: Optional[str] = Header(None)):
-    """Vytvor nový projekt a priečinkrovú štruktúru"""
-    try:
-        if not authorization:
-            raise HTTPException(status_code=401, detail="No token provided")
-        
-        # Extrahuj user_id z headera (v skutočnom JWT by sme dekódovali token)
-        # Pre teraz budeme posiela user_id v tele requestu
-        raise HTTPException(status_code=400, detail="user_id je potrebný")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@app.get("/api/projects/{project_id}/info")
-async def get_project_info(project_id: str):
-    """Načítaj konkrétny projekt info z Supabase"""
-    try:
-        print(f"\n📋 GET PROJECT INFO ENDPOINT")
-        print(f"   project_id: {project_id}")
-        
-        # Načítaj projekt priamo z Supabase
-        response = supabase.table('projects').select('id, name, status, description, photos_count, objects, created_at, updated_at').eq('id', project_id).execute()
-        
-        if not response.data or len(response.data) == 0:
-            print(f"❌ Project not found: {project_id}")
-            raise HTTPException(status_code=404, detail="Project not found")
-        
-        p = response.data[0]
-        print(f"✅ Project found: {p.get('name')}")
-        
-        return {
-            "id": str(p['id']),
-            "project_name": p.get('name', ''),
-            "status": p.get('status', 'pending'),
-            "description": p.get('description', ''),
-            "image_count": p.get('photos_count', 0),
-            "objects": p.get('objects', ''),
-            "created_at": str(p.get('created_at', '')),
-            "updated_at": str(p.get('updated_at', ''))
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-
-@app.get("/api/projects/{user_id}")
-
-async def create_project_with_user(user_id: str, request: CreateProjectRequest, authorization: Optional[str] = Header(None)):
+@app.post("/api/projects/create/{user_id}")
+async def create_project(user_id: str, request: CreateProjectRequest, authorization: Optional[str] = Header(None)):
     """Vytvor nový projekt a priečinkkovú štruktúru"""
     try:
         print(f"\n🔍 CREATE PROJECT ENDPOINT")
@@ -264,6 +221,7 @@ async def create_project_with_user(user_id: str, request: CreateProjectRequest, 
     except HTTPException:
         raise
     except Exception as e:
+        print(f"❌ Error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/api/projects/{project_id}/info")
@@ -299,12 +257,190 @@ async def get_project_info(project_id: str):
         print(f"❌ Error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.get("/api/projects/{user_id}")
+# ============================================
+# IMAGE UPLOAD
+# ============================================
 
+@app.post("/api/projects/{project_id}/upload-image")
+async def upload_project_image(
+    project_id: str,
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None)
+):
+    """Upload obrázku do projektu a aktualizácia photos_count"""
+    try:
+        print(f"\n📸 UPLOAD IMAGE ENDPOINT")
+        print(f"   project_id: {project_id}")
+        print(f"   filename: {file.filename}")
+        print(f"   token: {authorization[:20] if authorization else 'NONE'}...")
+        
+        if not authorization:
+            print("❌ No token provided")
+            raise HTTPException(status_code=401, detail="No token provided")
+        
+        # Ulož obrázok do PROJECTS_PATH/user_id/project_id/images/
+        projects_path = os.getenv('PROJECTS_PATH', Path(__file__).parent / 'routers' / 'projects')
+        
+        # Musíme nájsť všetky user_id priečinky a nájsť ten s project_id
+        projects_root = Path(projects_path)
+        image_path = None
+        
+        if projects_root.exists():
+            for user_dir in projects_root.iterdir():
+                if user_dir.is_dir():
+                    project_dir = user_dir / project_id / 'images'
+                    if project_dir.exists():
+                        image_path = project_dir
+                        break
+        
+        if not image_path:
+            print(f"❌ Project directory not found for project_id: {project_id}")
+            raise HTTPException(status_code=404, detail="Project directory not found")
+        
+        # Ulož obrázok
+        file_path = image_path / file.filename
+        with open(file_path, "wb") as f:
+            contents = await file.read()
+            f.write(contents)
+        
+        print(f"✅ Obrázok uložený: {file_path}")
+        
+        # Spočítaj všetky obrázky v priečinku
+        image_files = list(image_path.glob('*'))
+        photos_count = len(image_files)
+        print(f"📊 Počet obrázkov: {photos_count}")
+        
+        # Aktualizuj photos_count v Supabase
+        try:
+            update_response = supabase.table('projects').update(
+                {'photos_count': photos_count}
+            ).eq('id', project_id).execute()
+            
+            print(f"✅ Supabase aktualizovaný: photos_count = {photos_count}")
+        except Exception as db_error:
+            print(f"⚠️ Upozornenie: Nepodarilo sa aktualizovať Supabase: {db_error}")
+        
+        return {
+            "filename": file.filename,
+            "path": str(file_path),
+            "url": f"/api/projects/{project_id}/{file.filename}",
+            "photos_count": photos_count
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Upload error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+# ============================================
+# 3D MODEL
+# ============================================
+
+@app.get("/api/projects/{project_id}/3d-model")
+async def check_3d_model(project_id: str):
+    """Skontroluj či existuje 3D model pre projekt"""
+    try:
+        print(f"\n🎯 CHECK 3D MODEL ENDPOINT")
+        print(f"   project_id: {project_id}")
+        
+        # Nájsť model v priečinku PROJECTS_PATH/user_id/project_id/3Dmodel/
+        projects_path = os.getenv('PROJECTS_PATH', Path(__file__).parent / 'routers' / 'projects')
+        projects_root = Path(projects_path)
+        
+        model_path = None
+        model_file = None
+        
+        if projects_root.exists():
+            for user_dir in projects_root.iterdir():
+                if user_dir.is_dir():
+                    model_dir = user_dir / project_id / '3Dmodel'
+                    if model_dir.exists():
+                        # Hľadaj .ply súbor
+                        for file in model_dir.glob('*.ply'):
+                            model_path = file
+                            model_file = file.name
+                            break
+                        if model_path:
+                            break
+        
+        if model_path:
+            print(f"✅ Model nájdený: {model_path}")
+            return {
+                "exists": True,
+                "filename": model_file,
+                "size": model_path.stat().st_size
+            }
+        else:
+            print(f"⚠️ Model not found for project_id: {project_id}")
+            return {
+                "exists": False
+            }
+    
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/projects/{project_id}/3d-model/content")
+async def get_3d_model_content(project_id: str):
+    """Načítaj obsah 3D modelu (PLY formát) pre projekt"""
+    try:
+        print(f"\n🎯 GET 3D MODEL CONTENT ENDPOINT")
+        print(f"   project_id: {project_id}")
+        
+        # Nájsť model v priečinku PROJECTS_PATH/user_id/project_id/3Dmodel/
+        projects_path = os.getenv('PROJECTS_PATH', Path(__file__).parent / 'routers' / 'projects')
+        projects_root = Path(projects_path)
+        
+        model_path = None
+        
+        if projects_root.exists():
+            for user_dir in projects_root.iterdir():
+                if user_dir.is_dir():
+                    model_dir = user_dir / project_id / '3Dmodel'
+                    if model_dir.exists():
+                        # Hľadaj .ply súbor
+                        for file in model_dir.glob('*.ply'):
+                            model_path = file
+                            break
+                        if model_path:
+                            break
+        
+        if not model_path:
+            print(f"❌ Model not found for project_id: {project_id}")
+            raise HTTPException(status_code=404, detail="3D model not found")
+        
+        print(f"✅ Model nájdený: {model_path}")
+        
+        # Načítaj PLY obsah - binárny format
+        try:
+            with open(model_path, 'rb') as f:
+                model_content = f.read()
+            
+            print(f"✅ Model obsah prečítaný ({len(model_content)} bytes)")
+            
+            # Vráť raw PLY obsah ako bytes
+            return Response(
+                content=model_content,
+                media_type="application/octet-stream",
+                headers={"Content-Disposition": f"inline; filename={model_path.name}"}
+            )
+        except Exception as read_error:
+            print(f"❌ Error reading model: {read_error}")
+            raise HTTPException(status_code=400, detail=f"Error reading model: {str(read_error)}")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+# ============================================
+# ADMIN
+# ============================================
 
 @app.get("/api/admin/users")
 async def get_all_users(authorization: Optional[str] = Header(None)):
-    """Načítaj všetkých užívateľov (Admin endpoinT)"""
+    """Načítaj všetkých užívateľov (Admin endpoint)"""
     try:
         if not authorization:
             raise HTTPException(status_code=401, detail="No token provided")
@@ -440,6 +576,10 @@ async def get_table_data(table_name: str, authorization: Optional[str] = Header(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+# ============================================
+# FILES
+# ============================================
+
 @app.post("/api/files/upload")
 async def upload_file(
     file: UploadFile = File(...),
@@ -448,7 +588,6 @@ async def upload_file(
 ):
     """Upload súboru"""
     try:
-        # Extrahuj token z headera
         if not authorization:
             raise HTTPException(status_code=401, detail="No token provided")
         
@@ -469,78 +608,6 @@ async def upload_file(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.post("/api/projects/{project_id}/upload-image")
-async def upload_project_image(
-    project_id: str,
-    file: UploadFile = File(...),
-    authorization: Optional[str] = Header(None)
-):
-    """Upload obrázku do projektu a aktualizácia photos_count"""
-    try:
-        print(f"\n📸 UPLOAD IMAGE ENDPOINT")
-        print(f"   project_id: {project_id}")
-        print(f"   filename: {file.filename}")
-        print(f"   token: {authorization[:20] if authorization else 'NONE'}...")
-        
-        if not authorization:
-            print("❌ No token provided")
-            raise HTTPException(status_code=401, detail="No token provided")
-        
-        # Ulož obrázok do PROJECTS_PATH/user_id/project_id/images/
-        projects_path = os.getenv('PROJECTS_PATH', Path(__file__).parent / 'routers' / 'projects')
-        
-        # Musíme nájsť všetky user_id priečinky a nájsť ten s project_id
-        projects_root = Path(projects_path)
-        image_path = None
-        
-        if projects_root.exists():
-            for user_dir in projects_root.iterdir():
-                if user_dir.is_dir():
-                    project_dir = user_dir / project_id / 'images'
-                    if project_dir.exists():
-                        image_path = project_dir
-                        break
-        
-        if not image_path:
-            print(f"❌ Project directory not found for project_id: {project_id}")
-            raise HTTPException(status_code=404, detail="Project directory not found")
-        
-        # Ulož obrázok
-        file_path = image_path / file.filename
-        with open(file_path, "wb") as f:
-            contents = await file.read()
-            f.write(contents)
-        
-        print(f"✅ Obrázok uložený: {file_path}")
-        
-        # Spočítaj všetky obrázky v priečinku
-        image_files = list(image_path.glob('*'))
-        photos_count = len(image_files)
-        print(f"📊 Počet obrázkov: {photos_count}")
-        
-        # Aktualizuj photos_count v Supabase
-        try:
-            update_response = supabase.table('projects').update(
-                {'photos_count': photos_count}
-            ).eq('id', project_id).execute()
-            
-            print(f"✅ Supabase aktualizovaný: photos_count = {photos_count}")
-        except Exception as db_error:
-            print(f"⚠️ Upozornenie: Nepodarilo sa aktualizovať Supabase: {db_error}")
-            # Nepreruš upload ak sa update nepodarí
-        
-        return {
-            "filename": file.filename,
-            "path": str(file_path),
-            "url": f"/api/projects/{project_id}/{file.filename}",
-            "photos_count": photos_count
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ Upload error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-
 @app.get("/api/files/{project_id}/{filename}")
 async def get_file(project_id: str, filename: str):
     """Download súboru"""
@@ -553,103 +620,9 @@ async def get_file(project_id: str, filename: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.get("/api/projects/{project_id}/3d-model")
-async def check_3d_model(project_id: str):
-    """Skontroluj či existuje 3D model pre projekt"""
-    try:
-        print(f"\n🎯 CHECK 3D MODEL ENDPOINT")
-        print(f"   project_id: {project_id}")
-        
-        # Nájsť model v priečinku PROJECTS_PATH/user_id/project_id/3Dmodel/
-        projects_path = os.getenv('PROJECTS_PATH', Path(__file__).parent / 'routers' / 'projects')
-        projects_root = Path(projects_path)
-        
-        model_path = None
-        model_file = None
-        
-        if projects_root.exists():
-            for user_dir in projects_root.iterdir():
-                if user_dir.is_dir():
-                    model_dir = user_dir / project_id / '3Dmodel'
-                    if model_dir.exists():
-                        # Hľadaj .ply súbor
-                        for file in model_dir.glob('*.ply'):
-                            model_path = file
-                            model_file = file.name
-                            break
-                        if model_path:
-                            break
-        
-        if model_path:
-            print(f"✅ Model nájdený: {model_path}")
-            return {
-                "exists": True,
-                "filename": model_file,
-                "size": model_path.stat().st_size
-            }
-        else:
-            print(f"⚠️ Model not found for project_id: {project_id}")
-            return {
-                "exists": False
-            }
-    
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-
-@app.get("/api/projects/{project_id}/3d-model/content")
-async def get_3d_model_content(project_id: str):
-    """Načítaj obsah 3D modelu (PLY formát) pre projekt"""
-    try:
-        print(f"\n🎯 GET 3D MODEL CONTENT ENDPOINT")
-        print(f"   project_id: {project_id}")
-        
-        # Nájsť model v priečinku PROJECTS_PATH/user_id/project_id/3Dmodel/
-        projects_path = os.getenv('PROJECTS_PATH', Path(__file__).parent / 'routers' / 'projects')
-        projects_root = Path(projects_path)
-        
-        model_path = None
-        
-        if projects_root.exists():
-            for user_dir in projects_root.iterdir():
-                if user_dir.is_dir():
-                    model_dir = user_dir / project_id / '3Dmodel'
-                    if model_dir.exists():
-                        # Hľadaj .ply súbor
-                        for file in model_dir.glob('*.ply'):
-                            model_path = file
-                            break
-                        if model_path:
-                            break
-        
-        if not model_path:
-            print(f"❌ Model not found for project_id: {project_id}")
-            raise HTTPException(status_code=404, detail="3D model not found")
-        
-        print(f"✅ Model nájdený: {model_path}")
-        
-        # Načítaj PLY obsah - binárny format
-        try:
-            with open(model_path, 'rb') as f:
-                model_content = f.read()
-            
-            print(f"✅ Model obsah prečítaný ({len(model_content)} bytes)")
-            
-            # Vráť raw PLY obsah ako bytes
-            return Response(
-                content=model_content,
-                media_type="application/octet-stream",
-                headers={"Content-Disposition": f"inline; filename={model_path.name}"}
-            )
-        except Exception as read_error:
-            print(f"❌ Error reading model: {read_error}")
-            raise HTTPException(status_code=400, detail=f"Error reading model: {str(read_error)}")
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+# ============================================
+# DOCS
+# ============================================
 
 @app.get("/docs", include_in_schema=False)
 async def docs():
