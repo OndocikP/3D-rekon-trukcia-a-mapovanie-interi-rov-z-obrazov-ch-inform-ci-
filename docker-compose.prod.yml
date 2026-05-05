@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Databáza - Len lokálna sieť (127.0.0.1)
+  postgres:
+    image: postgres:17-alpine
+    container_name: rekon_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
+      POSTGRES_DB: rekon_db
+    ports:
+      - "127.0.0.1:5432:5432"  # 🔒 Len lokal
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  # Backend API - Len lokálna sieť (127.0.0.1)
+  backend:
+    build:
+      context: ./Back-end
+      dockerfile: Dockerfile
+    container_name: rekon_backend
+    environment:
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD:-postgres123}@postgres:5432/rekon_db
+      SECRET_KEY: ${SECRET_KEY}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      ENVIRONMENT: production
+    ports:
+      - "127.0.0.1:8000:8000"  # 🔒 Len lokal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./Back-end/routers:/app/routers
+    command: sh -c "python init_db.py && uvicorn main:app --host 0.0.0.0 --port 8000"
+    networks:
+      - internal
+    restart: unless-stopped
+
+  # pgAdmin - Webový interfejs - Len lokálna sieť (127.0.0.1)
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: rekon_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "127.0.0.1:5050:80"  # 🔒 Len lokal
+    depends_on:
+      - postgres
+    networks:
+      - internal
+    restart: unless-stopped
+
+  # Frontend - VEREJNE DOSTUPNÝ (0.0.0.0 = všetky rozhrania)
+  frontend:
+    build:
+      context: ./Front-and
+      dockerfile: Dockerfile
+    container_name: rekon_frontend
+    environment:
+      REACT_APP_API_URL: http://backend:8000  # Internal URL
+      ENVIRONMENT: production
+    ports:
+      - "8081:3000"  # ✅ VEREJNE - dostupný z internetu!
+    depends_on:
+      - backend
+    networks:
+      - internal
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  internal:
+    driver: bridge

@@ -1,0 +1,29 @@
+
+
+cd Front-and
+npm install
+npx expo start
+
+cd Back-end; cls; py -m main
+
+
+py -m run_backend  
+
+back end
+
+
+
+# Spusti všetko v pozadí
+docker-compose up -d
+
+# Zobraz logy backendu
+docker-compose logs -f backend
+
+# Zobraz logy databázy
+docker-compose logs -f postgres
+
+# Zastav všetko
+docker-compose down
+
+# Vymaž všetko (aj dáta)
+docker-compose down -v
