@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-=======
 # Node
 node_modules/
 npm-debug.log
@@ -24,10 +22,6 @@ build/
 .DS_Store
 Thumbs.db
 
-# Python / Back-end
-Back-end/
-
->>>>>>> 0382b05d008932b8d448808454b0daa9e0bf9cde
 # Python cache
 __pycache__/
 *.pyc
@@ -44,6 +38,7 @@ venv/
 # Environment variables
 .env
 *.env
+*.env.server2
 
 # Images
 *.jpg
@@ -51,3 +46,13 @@ venv/
 *.png
 *.gif
 *.svg
+
+# Logs
+*.log
+
+# Generated 3D models
+*.ply
+*.pcd
+*.obj
+*.mtl
+*.stl
