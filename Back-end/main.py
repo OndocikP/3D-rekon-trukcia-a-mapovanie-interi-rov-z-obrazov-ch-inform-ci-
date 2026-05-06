@@ -3,7 +3,7 @@ Minimálny Backend - Proxy API k Supabase
 Iba endpointy + file storage
 """
 
-from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Header
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
@@ -617,6 +617,166 @@ async def get_file(project_id: str, filename: str):
             raise HTTPException(status_code=404, detail="File not found")
         
         return FileResponse(file_path)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# ============================================
+# WORKER SERVER ENDPOINTS
+# ============================================
+
+@app.post("/api/worker/login")
+async def worker_login(request: LoginRequest):
+    """Prihlásenie admin usera ako worker (Server 2)"""
+    try:
+        response = supabase.rpc(
+            'login_user',
+            {'p_username': request.username, 'p_password': request.password}
+        ).execute()
+        
+        if not response.data:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        user = response.data[0]
+        
+        # Skontroluj či je admin
+        if user.get('role') != 'admin':
+            raise HTTPException(status_code=403, detail="Only admin can access worker endpoints")
+        
+        return {
+            "access_token": "placeholder-jwt-token",
+            "token_type": "bearer",
+            "user": {
+                "id": str(user['id']),
+                "username": user.get('username', ''),
+                "email": user.get('email', ''),
+                "role": user.get('role', ''),
+                "created_at": str(user.get('created_at', ''))
+            },
+            "user_id": str(user['id'])
+        }
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+@app.get("/api/worker/projects/pending")
+async def get_pending_projects(authorization: Optional[str] = Header(None)):
+    """Načítaj pending projekty pre worker (RPC)"""
+    try:
+        if not authorization:
+            raise HTTPException(status_code=401, detail="No token provided")
+        
+        # Volaj RPC funkciu na načítanie pending alebo empty projects
+        response = supabase.rpc('load_pending_or_empty_projects').execute()
+        
+        if not response.data:
+            return []
+        
+        return response.data
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/worker/projects/{project_id}/images/list")
+async def list_project_images(
+    project_id: str,
+    owner_id: str = Query(...),
+    authorization: Optional[str] = Header(None)
+):
+    """Zoznam fotiek projektu"""
+    try:
+        if not authorization:
+            raise HTTPException(status_code=401, detail="No token provided")
+        
+        # Skontroluj či projekt existuje
+        response = supabase.table('projects').select('*').eq('id', project_id).eq('owner_id', owner_id).execute()
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Zoznam obrázkov z priečinka
+        project_dir = FILES_DIR / owner_id / project_id
+        images = []
+        
+        if project_dir.exists():
+            for file in project_dir.glob("*"):
+                if file.is_file() and file.suffix.lower() in ['.jpg', '.jpeg', '.png', '.gif']:
+                    images.append(file.name)
+        
+        return {"images": sorted(images)}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/worker/projects/{project_id}/images/download/{filename}")
+async def download_project_image(
+    project_id: str,
+    filename: str,
+    owner_id: str = Query(...),
+    authorization: Optional[str] = Header(None)
+):
+    """Download fotky projektu"""
+    try:
+        if not authorization:
+            raise HTTPException(status_code=401, detail="No token provided")
+        
+        file_path = FILES_DIR / owner_id / project_id / filename
+        
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Image not found")
+        
+        return FileResponse(file_path)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/worker/projects/{project_id}/update-objects")
+async def update_project_objects(
+    project_id: str,
+    data: dict,
+    authorization: Optional[str] = Header(None)
+):
+    """Aktualizuj objekty (YOLO výsledky)"""
+    try:
+        if not authorization:
+            raise HTTPException(status_code=401, detail="No token provided")
+        
+        objects = data.get("objects", "")
+        
+        # Aktualizuj projekt
+        response = supabase.table('projects').update({"objects": objects}).eq('id', project_id).execute()
+        
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        return {"message": "Objects updated", "project_id": project_id}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/worker/projects/{project_id}/upload-3d-model")
+async def upload_3d_model(
+    project_id: str,
+    file: UploadFile = File(...),
+    owner_id: str = Query(...),
+    authorization: Optional[str] = Header(None)
+):
+    """Upload 3D modelu"""
+    try:
+        if not authorization:
+            raise HTTPException(status_code=401, detail="No token provided")
+        
+        # Vytvoriť priečinok
+        model_dir = FILES_DIR / owner_id / project_id
+        model_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Ulož súbor
+        file_path = model_dir / file.filename
+        with open(file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        # Aktualizuj projekt na "generated" status
+        supabase.table('projects').update({"status": "generated"}).eq('id', project_id).execute()
+        
+        return {
+            "message": "3D model uploaded",
+            "filename": file.filename,
+            "project_id": project_id
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
