@@ -6,7 +6,7 @@ import {
   StyleSheet,
   Image,
 } from 'react-native';
-import { colors } from '../theme/colors';
+import { useColors } from '../theme/ColorsProvider';
 
 type Props = {
   name: string;
@@ -14,57 +14,83 @@ type Props = {
 };
 
 export default function ProjectCard({ name, onPress }: Props) {
+  const { colors } = useColors();
+
   return (
-    <Pressable style={styles.card} onPress={onPress}>
+    <Pressable 
+      style={({ pressed }) => [
+        styles.card,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.cardBorder,
+          opacity: pressed ? 0.8 : 1,
+          transform: [{ scale: pressed ? 0.98 : 1 }],
+        }
+      ]}
+      onPress={onPress}
+    >
       {/* IKONA */}
-      <View style={styles.iconBox}>
+      <View style={[
+        styles.iconBox,
+        { 
+          backgroundColor: colors.primaryLight + '15',
+          borderColor: colors.primaryLight + '30'
+        }
+      ]}>
         <Image
           source={require('../assets/folder.png')}
-          style={styles.icon}
+          style={[styles.icon, { tintColor: colors.primary }]}
         />
       </View>
 
       {/* NÁZOV */}
-      <Text style={styles.name}>{name}</Text>
+      <Text 
+        style={[styles.name, { color: colors.textPrimary }]}
+        numberOfLines={2}
+      >
+        {name}
+      </Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    width: 130,
-    height: 130,
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 10,
+    width: 140,
+    height: 140,
+    borderRadius: 16,
+    padding: 12,
     marginBottom: 18,
     marginHorizontal: 8,
     justifyContent: 'space-between',
     alignItems: 'center',
-
-    // ✅ jemný rámček
     borderWidth: 1,
-    borderColor: colors.card,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
 
   iconBox: {
-    width: '80%',
-    height: '60%',
-    borderRadius: 8,
-    backgroundColor: colors.card,
+    width: '85%',
+    height: '65%',
+    borderRadius: 12,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
 
   icon: {
-    width: 48,
-    height: 48,
+    width: 52,
+    height: 52,
     resizeMode: 'contain',
   },
 
   name: {
-    color: colors.textPrimary,
     fontSize: 13,
+    fontWeight: '600',
     textAlign: 'center',
+    letterSpacing: 0.2,
   },
 });

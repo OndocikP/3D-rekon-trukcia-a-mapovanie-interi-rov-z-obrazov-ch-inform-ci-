@@ -166,27 +166,33 @@ const styles = StyleSheet.create({
   },
 
   card: {
-  borderRadius: 30,
-  padding: 25,
-  width: Platform.OS === 'web' ? '33%' : '80%', // 🔥 1/3 obrazovky
-  maxWidth: Platform.OS === 'web' ? 480 : '100%', // 🔥 aby to nebolo obrie
-  minWidth: Platform.OS === 'web' ? 360 : '80%',  // 🔥 aby to nebolo príliš úzke
-  alignSelf: 'center',
-  borderWidth: 1,
-},
-
+    borderRadius: 20,
+    padding: 32,
+    width: Platform.OS === 'web' ? '33%' : '85%',
+    maxWidth: 500,
+    minWidth: Platform.OS === 'web' ? 360 : '100%',
+    alignSelf: 'center',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
 
   input: {
     height: layout.inputHeight,
-    borderRadius: layout.radius,
-    paddingHorizontal: 15,
-    marginBottom: 12,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    marginBottom: 14,
+    fontSize: 15,
+    borderWidth: 1,
   },
 
   errorText: {
     textAlign: 'center',
-    marginBottom: 10,
-    fontSize: 14,
+    marginBottom: 14,
+    fontSize: 13,
     fontWeight: '500',
   },
 
@@ -194,7 +200,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 10,
+    gap: 12,
+    marginTop: 20,
   },
 });

@@ -32,10 +32,11 @@ export default function AppButton({
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled}
-      activeOpacity={0.8}
+      activeOpacity={0.85}
       style={[
         styles.button,
         variantStyle,
+        !disabled && styles.shadow,
         disabled && styles.disabled,
         icon && !title && styles.iconOnly,
       ]}
@@ -44,7 +45,7 @@ export default function AppButton({
         <MaterialIcons
           name={icon}
           size={iconSize}
-          color={colors.buttonText}
+          color={disabled ? colors.textTertiary : colors.buttonText}
         />
       )}
 
@@ -96,12 +97,21 @@ function getTextStyle(variant: Props['variant'], colors: any) {
 const styles = StyleSheet.create({
   button: {
     height: layout.buttonHeight,
-    borderRadius: layout.radius,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
+    overflow: 'hidden',
+  },
+
+  shadow: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
   },
 
   iconOnly: {
@@ -111,10 +121,11 @@ const styles = StyleSheet.create({
 
   text: {
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: 15,
+    letterSpacing: 0.3,
   },
 
   disabled: {
-    opacity: 0.5,
+    opacity: 0.6,
   },
 });

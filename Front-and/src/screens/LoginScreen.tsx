@@ -90,10 +90,19 @@ export default function LoginScreen() {
 
       {/* Card s formulárom */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Sign In</Text>
+
         <TextInput
           placeholder="Username"
           placeholderTextColor={colors.placeholder}
-          style={[styles.input, { backgroundColor: colors.inputBackground }]}
+          style={[
+            styles.input,
+            { 
+              backgroundColor: colors.inputBackground,
+              borderColor: colors.inputBorder,
+              color: colors.textPrimary,
+            }
+          ]}
           value={username}
           onChangeText={setUsername}
           editable={!loading}
@@ -102,7 +111,14 @@ export default function LoginScreen() {
           placeholder="Password"
           placeholderTextColor={colors.placeholder}
           secureTextEntry
-          style={[styles.input, { backgroundColor: colors.inputBackground }]}
+          style={[
+            styles.input,
+            { 
+              backgroundColor: colors.inputBackground,
+              borderColor: colors.inputBorder,
+              color: colors.textPrimary,
+            }
+          ]}
           value={password}
           onChangeText={setPassword}
           editable={!loading}
@@ -116,7 +132,7 @@ export default function LoginScreen() {
             disabled={loading}
           />
           <AppButton
-            title={loading ? "Prihlasovanie..." : "Login"}
+            title={loading ? "Signing in..." : "Login"}
             onPress={handleLogin}
             disabled={loading}
           />
@@ -185,36 +201,53 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 520,
     alignSelf: 'center',
+    marginBottom: 20,
   },
 
   card: {
-    borderRadius: 30,
-    padding: 25,
+    borderRadius: 20,
+    padding: 32,
     width: '100%',
     maxWidth: 520,
     alignSelf: 'center',
     borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 28,
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
 
   input: {
     height: layout.inputHeight,
-    borderRadius: layout.radius,
-    paddingHorizontal: 15,
-    marginBottom: 12,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    marginBottom: 14,
+    fontSize: 15,
+    borderWidth: 1,
   },
 
   buttons: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 10,
-    marginTop: 10,
+    gap: 12,
+    marginTop: 20,
   },
 
   forgot: {
     textDecorationLine: 'underline',
     textAlign: 'center',
-    marginTop: 15,
+    marginTop: 18,
     fontSize: 13,
+    fontWeight: '500',
   },
 
   modalOverlay: {
@@ -224,24 +257,32 @@ const styles = StyleSheet.create({
   },
 
   modalCard: {
-    padding: 25,
-    borderRadius: 25,
+    padding: 28,
+    borderRadius: 20,
     width: '85%',
     maxWidth: 520,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 10,
   },
 
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 15,
+    marginBottom: 20,
+    letterSpacing: 0.3,
   },
 
   modalCancel: {
     textAlign: 'center',
-    marginTop: 15,
+    marginTop: 16,
     fontSize: 13,
     textDecorationLine: 'underline',
+    fontWeight: '500',
   },
 
   logoInverted: {
@@ -252,11 +293,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 15,
-    gap: 8,
+    marginTop: 18,
+    gap: 10,
   },
 
   divider: {
     fontSize: 16,
+    fontWeight: '300',
   },
 });

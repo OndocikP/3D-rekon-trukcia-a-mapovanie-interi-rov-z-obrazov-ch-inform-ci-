@@ -134,44 +134,51 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: layout.padding,
     paddingTop: 40,
-    paddingBottom: 24,
+    paddingBottom: 20,
   },
 
   userInfo: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
 
   userGreeting: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '500',
+    letterSpacing: 0.2,
   },
 
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
 
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '700',
+    letterSpacing: 0.5,
   },
 
   projectsCard: {
     flex: 1,
-    borderRadius: 24,
+    borderRadius: 18,
     paddingVertical: 16,
     borderWidth: 1,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
 
   projectsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'flex-start',
-    paddingHorizontal: 16,
-    gap: 16,
+    paddingHorizontal: 12,
+    gap: 12,
     alignItems: 'flex-start',
   },
 
@@ -182,8 +189,10 @@ const styles = StyleSheet.create({
   },
 
   emptyText: {
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: '500',
     textAlign: 'center',
+    letterSpacing: 0.2,
   },
 
   footer: {
