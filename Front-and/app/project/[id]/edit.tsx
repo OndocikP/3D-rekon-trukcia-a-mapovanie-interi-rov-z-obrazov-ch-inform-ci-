@@ -334,7 +334,8 @@ export default function ProjectEditScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: layout.padding,
+    paddingHorizontal: 60,
+    paddingVertical: 20,
     paddingTop: 42,
   },
 
@@ -402,9 +403,9 @@ const styles = StyleSheet.create({
 
   footer: {
     position: 'absolute',
-    left: layout.padding,
-    right: layout.padding,
-    bottom: 18,
+    left: 80,
+    right: 80,
+    bottom: 30,
     flexDirection: 'row',
     gap: 12,
   },
