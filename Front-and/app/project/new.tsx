@@ -334,7 +334,8 @@ export default function ProjectNewScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: layout.padding,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
     paddingTop: 42,
   },
 
