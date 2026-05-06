@@ -95,6 +95,8 @@ export default function LoginScreen() {
         <TextInput
           placeholder="Username"
           placeholderTextColor={colors.placeholder}
+          autoComplete="username"
+          textContentType="username"
           style={[
             styles.input,
             { 
@@ -111,6 +113,8 @@ export default function LoginScreen() {
           placeholder="Password"
           placeholderTextColor={colors.placeholder}
           secureTextEntry
+          autoComplete="password"
+          textContentType="password"
           style={[
             styles.input,
             { 
