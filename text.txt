@@ -6,6 +6,7 @@ npx expo start
 
 cd Back-end; cls; py -m main
 
+cls; py -m worker_client
 
 py -m run_backend  
 
