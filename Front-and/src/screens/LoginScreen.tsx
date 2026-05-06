@@ -88,35 +88,8 @@ export default function LoginScreen() {
         resizeMode="contain"
       />
 
-      {/* MAIN CONTENT - Info + Card */}
-      <View style={styles.mainContent}>
-        {/* LEFT INFO */}
-        <View style={styles.infoSection}>
-          <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>
-            📱 Mapovanie Interiérov
-          </Text>
-          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-            Profesionálne 3D mapovanie a rekonštrukcia interiérov z fotografických informácií.
-          </Text>
-          <Text style={[styles.infoSubtitle, { color: colors.textPrimary }]}>
-            Ako to funguje:
-          </Text>
-          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-            • Nahraj fotografie interiéru
-          </Text>
-          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-            • Aplikácia spracuje obrazy
-          </Text>
-          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-            • Vygeneruje 3D model
-          </Text>
-          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-            • Pozri si výsledok v 3D vieweri
-          </Text>
-        </View>
-
-        {/* LOGIN CARD */}
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+      {/* Card s formulárom */}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
         <Text style={[styles.title, { color: colors.textPrimary }]}>Sign In</Text>
 
         <TextInput
@@ -181,9 +154,6 @@ export default function LoginScreen() {
         </View>
       </View>
 
-      {/* END MAIN CONTENT */}
-      </View>
-
       {/* Forgot Password Modal */}
       <Modal
         visible={forgotVisible}
@@ -227,23 +197,23 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     padding: layout.padding,
-    paddingTop: 20,
   },
 
   logoImage: {
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 520,
     alignSelf: 'center',
-    marginBottom: 30,
+    marginBottom: 20,
   },
 
   card: {
     borderRadius: 20,
     padding: 32,
-    flex: 1,
-    maxWidth: 420,
+    width: '100%',
+    maxWidth: 520,
+    alignSelf: 'center',
     borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
@@ -334,45 +304,5 @@ const styles = StyleSheet.create({
   divider: {
     fontSize: 16,
     fontWeight: '300',
-  },
-
-  mainContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 20,
-    flex: 1,
-    maxWidth: 1200,
-    alignSelf: 'center',
-    width: '100%',
-  },
-
-  infoSection: {
-    flex: 1,
-    paddingHorizontal: 12,
-    justifyContent: 'center',
-  },
-
-  infoTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12,
-    letterSpacing: 0.3,
-  },
-
-  infoSubtitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginTop: 14,
-    marginBottom: 8,
-    letterSpacing: 0.2,
-  },
-
-  infoText: {
-    fontSize: 13,
-    fontWeight: '400',
-    lineHeight: 20,
-    marginBottom: 6,
-    letterSpacing: 0.1,
   },
 });
