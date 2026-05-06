@@ -70,12 +70,6 @@ export default function MainScreen() {
         <Text style={[styles.title, { color: colors.textPrimary }]}>
           Projects
         </Text>
-        <AppButton
-          icon="add"
-          title="New project"
-          variant="secondary"
-          onPress={() => router.push('/project/new')}
-        />
       </View>
 
       {/* PROJECTS ZONE */}
@@ -114,6 +108,12 @@ export default function MainScreen() {
       {/* FOOTER */}
       <View style={styles.footer}>
         <AppButton
+          icon="add"
+          title="New"
+          variant="secondary"
+          onPress={() => router.push('/project/new')}
+        />
+        <AppButton
           icon="logout"
           variant="secondary"
           onPress={handleLogout}
@@ -148,9 +148,6 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 20,
   },
 
@@ -197,10 +194,10 @@ const styles = StyleSheet.create({
 
   footer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
     alignItems: 'center',
     marginTop: 16,
-    gap: 12,
+    gap: 8,
   },
 });
 

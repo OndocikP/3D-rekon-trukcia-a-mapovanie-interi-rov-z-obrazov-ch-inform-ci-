@@ -96,11 +96,12 @@ function getTextStyle(variant: Props['variant'], colors: any) {
 
 const styles = StyleSheet.create({
   button: {
-    height: layout.buttonHeight,
+    flex: 1,
+    minHeight: layout.buttonHeight,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     gap: 8,
     overflow: 'hidden',

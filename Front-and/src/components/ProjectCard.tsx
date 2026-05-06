@@ -4,8 +4,8 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useColors } from '../theme/ColorsProvider';
 
 type Props = {
@@ -37,9 +37,10 @@ export default function ProjectCard({ name, onPress }: Props) {
           borderColor: colors.primaryLight + '30'
         }
       ]}>
-        <Image
-          source={require('../assets/folder.png')}
-          style={[styles.icon, { tintColor: colors.primary }]}
+        <MaterialIcons
+          name="folder"
+          size={48}
+          color={colors.primary}
         />
       </View>
 
@@ -79,12 +80,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-
-  icon: {
-    width: 52,
-    height: 52,
-    resizeMode: 'contain',
   },
 
   name: {
