@@ -108,15 +108,16 @@ export default function MainScreen() {
       {/* FOOTER */}
       <View style={styles.footer}>
         <AppButton
+          icon="logout"
+          title="Logout"
+          variant="secondary"
+          onPress={handleLogout}
+        />
+        <AppButton
           icon="add"
           title="New"
           variant="secondary"
           onPress={() => router.push('/project/new')}
-        />
-        <AppButton
-          icon="logout"
-          variant="secondary"
-          onPress={handleLogout}
         />
         <AppButton
           icon="settings"
