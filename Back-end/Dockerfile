@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8086
 
 # Najskôr inicializuj DB, potom spustí aplikáciu
-CMD python init_db.py && uvicorn main:app --host 0.0.0.0 --port 8000
+CMD python init_db.py && uvicorn main:app --host 0.0.0.0 --port 8086

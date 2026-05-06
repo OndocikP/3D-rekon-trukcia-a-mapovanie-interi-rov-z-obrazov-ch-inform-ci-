@@ -208,6 +208,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
+  
   card: {
     borderRadius: 20,
     padding: 32,
