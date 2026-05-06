@@ -133,7 +133,8 @@ export default function MainScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: layout.padding,
+    paddingHorizontal: 80,
+    paddingVertical: layout.padding,
     paddingTop: 40,
     paddingBottom: 20,
   },
