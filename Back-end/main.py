@@ -37,7 +37,7 @@ app.add_middleware(
 )
 
 # Súbory
-FILES_DIR = Path(__file__).parent / "files"
+FILES_DIR = Path(__file__).parent / "projects"
 FILES_DIR.mkdir(exist_ok=True)
 
 # ============================================
@@ -691,7 +691,7 @@ async def list_project_images(
             raise HTTPException(status_code=404, detail="Project not found")
         
         # Zoznam obrázkov z priečinka
-        project_dir = FILES_DIR / owner_id / project_id
+        project_dir = FILES_DIR / owner_id / project_id / "images"
         images = []
         
         if project_dir.exists():
@@ -715,7 +715,7 @@ async def download_project_image(
         if not authorization:
             raise HTTPException(status_code=401, detail="No token provided")
         
-        file_path = FILES_DIR / owner_id / project_id / filename
+        file_path = FILES_DIR / owner_id / project_id / "images" / filename
         
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="Image not found")
