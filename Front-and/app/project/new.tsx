@@ -403,9 +403,9 @@ const styles = StyleSheet.create({
 
   footer: {
     position: 'absolute',
-    left: layout.padding,
-    right: layout.padding,
-    bottom: 18,
+    left: 80,
+    right: 80,
+    bottom: 30,
     flexDirection: 'row',
     gap: 12,
   },
