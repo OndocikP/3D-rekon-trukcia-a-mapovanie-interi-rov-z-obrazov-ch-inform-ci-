@@ -25,6 +25,9 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+    "ports": {
+      "http": 8085
+    },
     "plugins": [
       "expo-router",
       [

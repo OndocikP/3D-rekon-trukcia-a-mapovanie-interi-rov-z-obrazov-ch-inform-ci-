@@ -33,13 +33,13 @@ export default function ProjectCard({ name, onPress }: Props) {
       <View style={[
         styles.iconBox,
         { 
-          backgroundColor: colors.primaryLight + '25',
-          borderColor: colors.primaryLight + '50'
+          backgroundColor: colors.primaryLight + '40',
+          borderColor: colors.primary + '60'
         }
       ]}>
         <MaterialIcons
           name="folder"
-          size={64}
+          size={72}
           color={colors.primary}
         />
       </View>

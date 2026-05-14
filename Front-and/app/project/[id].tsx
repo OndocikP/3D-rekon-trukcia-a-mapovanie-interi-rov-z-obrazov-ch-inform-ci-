@@ -5,7 +5,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 
 import { layout } from '../../src/theme/layout';
 import AppButton from '../../src/components/AppButton';
-import { ThreeDViewer } from '../../src/components/ThreeDViewer';
+import { MediaViewer } from '../../src/components/MediaViewer';
 import { useColors } from '../../src/theme/ColorsProvider';
 import { useAuth } from '../../src/context/AuthContext';
 import * as apiClient from '../../src/api/client';
@@ -15,8 +15,8 @@ export default function ProjectDetailScreen() {
   const { token } = useAuth();
   const { id } = useLocalSearchParams<{ id?: string }>();
 
-  const [model3D, setModel3D] = useState<apiClient.Model3DInfo | null>(null);
-  const [loadingModel, setLoadingModel] = useState(false);
+  const [media, setMedia] = useState<apiClient.ProjectMedia | null>(null);
+  const [loadingMedia, setLoadingMedia] = useState(false);
   const [project, setProject] = useState<apiClient.Project | null>(null);
   const [loadingProject, setLoadingProject] = useState(true);
 
@@ -43,8 +43,8 @@ export default function ProjectDetailScreen() {
         Alert.alert('Upozornenie', 'Nepodarilo sa načítať info o projekte');
       }
       
-      // Skontroluj 3D model
-      await load3DModel(id, token);
+      // Načítaj médiá (videá a modely)
+      await loadMedia(id, token);
     } catch (error) {
       console.error('Error loading project:', error);
       Alert.alert('Chyba', error instanceof Error ? error.message : 'Neznáma chyba');
@@ -53,29 +53,29 @@ export default function ProjectDetailScreen() {
     }
   };
 
-  const load3DModel = async (projectId: string, userToken: string) => {
+  const loadMedia = async (projectId: string, userToken: string) => {
     try {
-      setLoadingModel(true);
-      console.log(`[PROJECT] Checking 3D model for project: ${projectId}`);
-      const response = await apiClient.check3DModel(projectId, userToken);
-      console.log('[PROJECT] 3D Model check response:', response);
+      setLoadingMedia(true);
+      console.log(`[PROJECT] Loading media for project: ${projectId}`);
+      const response = await apiClient.getProjectMedia(projectId);
+      console.log('[PROJECT] Media check response:', response);
       if (response.data) {
-        console.log(`[PROJECT] 3D Model info:`, response.data);
-        setModel3D(response.data);
-        if (response.data.exists) {
-          console.log(`[PROJECT] ✅ 3D Model exists`);
+        console.log(`[PROJECT] Media info:`, response.data);
+        setMedia(response.data);
+        if (response.data.has_media) {
+          console.log(`[PROJECT] ✅ Media available`);
         } else {
-          console.log(`[PROJECT] ℹ️ No 3D model for this project yet`);
+          console.log(`[PROJECT] ℹ️ No media for this project yet`);
         }
       } else {
         console.warn('[PROJECT] No data in response:', response.error);
-        setModel3D({ exists: false });
+        setMedia({ videos: [], models: [], has_media: false, priority: null });
       }
     } catch (error) {
-      console.error('[PROJECT] Error loading 3D model:', error);
-      setModel3D({ exists: false });
+      console.error('[PROJECT] Error loading media:', error);
+      setMedia({ videos: [], models: [], has_media: false, priority: null });
     } finally {
-      setLoadingModel(false);
+      setLoadingMedia(false);
     }
   };
 
@@ -109,8 +109,8 @@ export default function ProjectDetailScreen() {
               <Text style={[styles.title, { color: colors.textPrimary }]}>{projectName}</Text>
             </View>
 
-            {/* 3D MODEL OR PLACEHOLDER */}
-            {loadingModel ? (
+            {/* MEDIA VIEWER (VIDEOS + 3D MODELS) */}
+            {loadingMedia ? (
               <View
                 style={[
                   styles.imageWrapper,
@@ -120,7 +120,7 @@ export default function ProjectDetailScreen() {
               >
                 <ActivityIndicator size="large" color={colors.textPrimary} />
               </View>
-            ) : model3D?.exists ? (
+            ) : media?.has_media ? (
               <View
                 style={[
                   styles.imageWrapper,
@@ -128,8 +128,8 @@ export default function ProjectDetailScreen() {
                   imageStyle,
                 ]}
               >
-                <ThreeDViewer
-                  modelUrl={apiClient.get3DModelUrl(id || '', token || '')}
+                <MediaViewer
+                  projectId={id || ''}
                   token={token || ''}
                   width={imageStyle.width}
                   height={imageStyle.height}

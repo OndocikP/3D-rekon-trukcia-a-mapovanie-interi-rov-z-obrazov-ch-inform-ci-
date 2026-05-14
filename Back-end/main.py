@@ -434,6 +434,130 @@ async def get_3d_model_content(project_id: str):
         print(f"❌ Error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.get("/api/projects/{project_id}/media")
+async def get_project_media(project_id: str):
+    """Zíkaj všetky dostupné médiá (videá MP4 a 3D modely PLY) pre projekt"""
+    try:
+        print(f"\n🎯 GET PROJECT MEDIA ENDPOINT")
+        print(f"   project_id: {project_id}")
+        
+        # Nájsť médiá v priečinku PROJECTS_PATH/user_id/project_id/3Dmodel/
+        projects_path = os.getenv('PROJECTS_PATH', Path(__file__).parent / 'routers' / 'projects')
+        projects_root = Path(projects_path)
+        
+        videos = []
+        models = []
+        
+        if projects_root.exists():
+            for user_dir in projects_root.iterdir():
+                if user_dir.is_dir():
+                    media_dir = user_dir / project_id / '3Dmodel'
+                    if media_dir.exists():
+                        # Hľadaj MP4 videá
+                        for file in media_dir.glob('*.mp4'):
+                            videos.append({
+                                "filename": file.name,
+                                "type": "video",
+                                "size": file.stat().st_size
+                            })
+                        # Hľadaj PLY modely
+                        for file in media_dir.glob('*.ply'):
+                            models.append({
+                                "filename": file.name,
+                                "type": "model",
+                                "size": file.stat().st_size
+                            })
+                        break
+        
+        print(f"✅ Nájdené videá: {len(videos)}, modely: {len(models)}")
+        
+        return {
+            "videos": videos,
+            "models": models,
+            "has_media": len(videos) > 0 or len(models) > 0,
+            "priority": "video" if videos else ("model" if models else None)
+        }
+    
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/projects/{project_id}/media/{media_type}/{filename}")
+async def get_project_media_file(project_id: str, media_type: str, filename: str, token: str = Query(None)):
+    """Stiahni médiá súbor (video alebo model)"""
+    try:
+        print(f"\n🎯 GET PROJECT MEDIA FILE ENDPOINT")
+        print(f"   project_id: {project_id}, media_type: {media_type}, filename: {filename}")
+        print(f"   token provided: {bool(token)}")
+        
+        # Bezpečnostná kontrola - filename nesmie obsahovať ..
+        if ".." in filename or "/" in filename or "\\" in filename:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        
+        # Podporované formáty
+        if media_type == "video":
+            extension = ".mp4"
+        elif media_type == "model":
+            extension = ".ply"
+        else:
+            raise HTTPException(status_code=400, detail="Invalid media type")
+        
+        if not filename.endswith(extension):
+            raise HTTPException(status_code=400, detail=f"Invalid file extension for {media_type}")
+        
+        # Nájsť súbor v priečinku PROJECTS_PATH/user_id/project_id/3Dmodel/
+        projects_path = os.getenv('PROJECTS_PATH', Path(__file__).parent / 'routers' / 'projects')
+        projects_root = Path(projects_path)
+        
+        file_path = None
+        
+        if projects_root.exists():
+            for user_dir in projects_root.iterdir():
+                if user_dir.is_dir():
+                    media_dir = user_dir / project_id / '3Dmodel'
+                    if media_dir.exists():
+                        potential_file = media_dir / filename
+                        if potential_file.exists() and potential_file.is_file():
+                            file_path = potential_file
+                            break
+        
+        if not file_path:
+            print(f"❌ Media file not found: {filename}")
+            raise HTTPException(status_code=404, detail="Media file not found")
+        
+        print(f"✅ Media súbor nájdený: {file_path}")
+        
+        # Vráť súbor
+        if media_type == "video":
+            file_size = file_path.stat().st_size
+            print(f"📹 Returning video file, size: {file_size} bytes")
+            return FileResponse(
+                file_path,
+                media_type="video/mp4",
+                headers={
+                    "Content-Disposition": f"inline; filename={filename}",
+                    "Cache-Control": "public, max-age=31536000",
+                    "Content-Length": str(file_size),
+                    "Accept-Ranges": "bytes"
+                }
+            )
+        else:  # model
+            # Načítaj PLY obsah - binárny format
+            with open(file_path, 'rb') as f:
+                file_content = f.read()
+            
+            return Response(
+                content=file_content,
+                media_type="application/octet-stream",
+                headers={"Content-Disposition": f"inline; filename={filename}"}
+            )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
 # ============================================
 # ADMIN
 # ============================================

@@ -347,6 +347,67 @@ export function get3DModelUrl(
 }
 
 // ============================================
+// MEDIA ENDPOINTS (Videos + Models)
+// ============================================
+
+export interface MediaFile {
+  filename: string;
+  type: "video" | "model";
+  size: number;
+}
+
+export interface ProjectMedia {
+  videos: MediaFile[];
+  models: MediaFile[];
+  has_media: boolean;
+  priority: "video" | "model" | null;
+}
+
+/**
+ * Získaj všetky dostupné médiá (videá a PLY modely) pre projekt
+ */
+export async function getProjectMedia(
+  projectId: string
+): Promise<ApiResponse<ProjectMedia>> {
+  return apiCall(`/api/projects/${projectId}/media`);
+}
+
+/**
+ * Vráť URL na médiá súbor (video alebo model)
+ */
+export function getProjectMediaUrl(
+  projectId: string,
+  mediaType: "video" | "model",
+  filename: string,
+  token?: string
+): string {
+  const url = `${API_BASE_URL}/api/projects/${projectId}/media/${mediaType}/${filename}`;
+  return token ? `${url}?token=${token}` : url;
+}
+
+/**
+ * Vráť URL na video
+ */
+export function getVideoUrl(
+  projectId: string,
+  filename: string,
+  token?: string
+): string {
+  return getProjectMediaUrl(projectId, "video", filename, token);
+}
+
+/**
+ * Vráť URL na PLY model
+ */
+export function getModelUrl(
+  projectId: string,
+  filename: string,
+  token?: string
+): string {
+  return getProjectMediaUrl(projectId, "model", filename, token);
+}
+
+// ============================================
 // UTILITY FUNCTIONS
 // ============================================
 

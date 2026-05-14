@@ -2,7 +2,7 @@
 
 cd Front-and
 npm install
-npx expo start
+npx expo start --port 8085
 
 cd Back-end; cls; py -m main
 
@@ -28,3 +28,13 @@ docker-compose down
 
 # Vymaž všetko (aj dáta)
 docker-compose down -v
+
+
+# Vytvorte virtuálne prostredie
+python3 -m venv venv
+
+# Aktivujte ho
+source venv/bin/activate
+
+# Nainštalujte závislosťami
+pip install -r requirements.txt
