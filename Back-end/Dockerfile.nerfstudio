@@ -1,0 +1,46 @@
+# Dockerfile.nerfstudio - Nerfstudio Worker Image
+# Na tréning 3D modelov z obrázkov
+
+FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
+
+# Inštalácia základných závislostí
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3.10-dev \
+    python3-pip \
+    git \
+    wget \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pracovný priečinok
+WORKDIR /app
+
+# Kopírovanie requirements.txt
+COPY requirements.txt .
+
+# Inštalácia Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Inštalácia Nerfstudio
+RUN pip install nerfstudio
+
+# Kopírovanie skriptov
+COPY generate_3d_models.py .
+COPY worker_3d_models.py .
+COPY model_utils.py .
+
+# Log priečinok
+RUN mkdir -p /app/logs
+VOLUME ["/app/logs"]
+
+# Exponovať port pre monitorovanie (optional)
+EXPOSE 6006
+
+# Spustenie trainingu
+CMD ["python", "generate_3d_models.py"]
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import os; print('OK' if os.path.exists('/app/projects') else 'FAIL')"

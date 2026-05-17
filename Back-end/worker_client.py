@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """
-Worker Server Client - Server 2
+Worker Client - Lokálne spracovanie 3D rekonštrukcie
 Spracovanie 3D rekonštrukcie projektov
-- Stiahne fotky z Server 1
+- Prejde PROJECTS_PATH/user_id/project_id/images (lokálne fotky)
 - Spustí YOLO rekonštrukciu
-- Spustí COLMAP na 3D model
-- Uploaduje výsledky na Server 1 a Supabase
+- Spustí NERFSTUDIO/COLMAP na 3D model
+- Uloží výsledky do 3Dmodel/ priečinka
 """
 
-import requests
 import os
 import time
 import json
@@ -16,12 +15,10 @@ import logging
 from pathlib import Path
 from typing import Optional, Dict, List
 from datetime import datetime
-import shutil
 from dotenv import load_dotenv
 
-# Load .env.server2 (or .env as fallback)
-load_dotenv(dotenv_path=".env.server2")  # Load Server 2 config first
-load_dotenv()  # Fallback to .env if .env.server2 doesn't exist
+# Load .env
+load_dotenv()
 
 # ============================================
 # LOGGING
@@ -50,199 +47,71 @@ logging.basicConfig(
 logger = logging.getLogger("3d-worker")
 
 # ============================================
-# WORKER CLIENT
+# PROJECT SCANNER - LOKÁLNY
 # ============================================
 
-class WorkerClient:
-    """Klient na komunikáciu so Server 1"""
+class ProjectScanner:
+    """Skúmanie projektov lokálne z PROJECTS_PATH"""
     
-    def __init__(self, server_url: str, username: str, password: str):
-        self.server_url = server_url
-        self.username = username
-        self.password = password
-        self.token = None
-        self.user_id = None
-        self.headers = {"Content-Type": "application/json"}
+    def __init__(self, projects_path: str):
+        self.projects_path = Path(projects_path)
     
-    def login(self) -> bool:
-        """Prihlásenie ako worker (admin)"""
-        try:
-            logger.info(f"[AUTH] Connecting to: {self.server_url}")
-            
-            response = requests.post(
-                f"{self.server_url}/api/worker/login",
-                json={"username": self.username, "password": self.password},
-                timeout=10
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"[ERROR] Login failed: {response.text}")
-                return False
-            
-            data = response.json()
-            self.token = data.get("access_token")
-            self.user_id = data.get("user_id")
-            
-            logger.info(f"[OK] Logged in as: {data.get('username')} | Role: {data.get('role')}")
-            
-            # Update headers
-            self.headers["Authorization"] = f"Bearer {self.token}"
-            
-            return True
+    def get_all_projects(self) -> List[Dict]:
+        """Scan všetky projekty v PROJECTS_PATH"""
+        projects = []
         
-        except Exception as e:
-            logger.error(f"[ERROR] Login error: {e}")
-            return False
-    
-    def get_pending_projects(self) -> List[Dict]:
-        """Načítaj pending projekty"""
-        try:
-            response = requests.get(
-                f"{self.server_url}/api/worker/projects/pending",
-                headers=self.headers,
-                timeout=10
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"[ERROR] Failed to get projects: {response.text}")
-                return []
-            
-            projects = response.json()
-            logger.info(f"[PROJECTS] Found {len(projects)} pending projects")
-            
+        if not self.projects_path.exists():
+            logger.error(f"[ERROR] PROJECTS_PATH not found: {self.projects_path}")
             return projects
         
-        except Exception as e:
-            logger.error(f"[ERROR] Error fetching projects: {e}")
-            return []
-    
-    def download_images(self, project_id: str, owner_id: str, output_dir: str) -> bool:
-        """Stiahni všetky fotky projektu"""
         try:
-            logger.info(f"[DOWNLOAD] Downloading images for project: {project_id}")
-            
-            # Zoznam fotiek
-            list_response = requests.get(
-                f"{self.server_url}/api/worker/projects/{project_id}/images/list",
-                headers=self.headers,
-                params={"owner_id": owner_id},
-                timeout=10
-            )
-            
-            if list_response.status_code != 200:
-                logger.error(f"[ERROR] Failed to list images: {list_response.text}")
-                return False
-            
-            images_data = list_response.json()
-            images = images_data.get("images", [])
-            
-            logger.info(f"[OK] Found {len(images)} images to download")
-            
-            # Vytvor output priečinok
-            output_path = Path(output_dir) / project_id / "images"
-            output_path.mkdir(parents=True, exist_ok=True)
-            
-            # Stiahni každú fotku
-            downloaded = 0
-            for i, filename in enumerate(images, 1):
-                try:
-                    logger.info(f"   [{i}/{len(images)}] Downloading: {filename}")
-                    
-                    img_response = requests.get(
-                        f"{self.server_url}/api/worker/projects/{project_id}/images/download/{filename}",
-                        headers=self.headers,
-                        params={"owner_id": owner_id},
-                        timeout=30
-                    )
-                    
-                    if img_response.status_code != 200:
-                        logger.warning(f"[WARN] Failed to download: {filename}")
+            # Prejdi user_id priečinky
+            for user_dir in sorted(self.projects_path.iterdir()):
+                if not user_dir.is_dir():
+                    continue
+                
+                user_id = user_dir.name
+                
+                # Prejdi project_id priečinky
+                for project_dir in sorted(user_dir.iterdir()):
+                    if not project_dir.is_dir():
                         continue
                     
-                    # Ulož fotku
-                    file_path = output_path / filename
-                    with open(file_path, "wb") as f:
-                        f.write(img_response.content)
+                    project_id = project_dir.name
+                    images_dir = project_dir / "images"
+                    model_dir = project_dir / "3Dmodel"
                     
-                    size_mb = len(img_response.content) / (1024 * 1024)
-                    logger.info(f"      [OK] Downloaded ({size_mb:.2f} MB)")
-                    downloaded += 1
-                
-                except Exception as e:
-                    logger.error(f"[ERROR] Error downloading {filename}: {e}")
-            
-            logger.info(f"[OK] Downloaded {downloaded}/{len(images)} images to: {output_path}")
-            return downloaded > 0
+                    # Spočítaj obrázky (bez duplicitov - Windows je case-insensitive)
+                    if images_dir.exists():
+                        # Zber všetkých súborov s image extensions (deduplicated)
+                        image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff'}
+                        image_files = set()
+                        for file in images_dir.iterdir():
+                            if file.is_file() and file.suffix.lower() in image_extensions:
+                                image_files.add(file.name)
+                        image_count = len(image_files)
+                    else:
+                        image_count = 0
+                    
+                    # Skontroluj model
+                    has_model = False
+                    if model_dir.exists():
+                        has_model = len(list(model_dir.glob("*.ply"))) > 0
+                    
+                    projects.append({
+                        "user_id": user_id,
+                        "project_id": project_id,
+                        "project_path": str(project_dir),
+                        "images_path": str(images_dir),
+                        "model_path": str(model_dir),
+                        "image_count": image_count,
+                        "has_model": has_model,
+                    })
         
         except Exception as e:
-            logger.error(f"[ERROR] Error downloading images: {e}")
-            return False
-    
-    def update_objects(self, project_id: str, objects: str) -> bool:
-        """Aktualizuj objekty (YOLO výsledky)"""
-        try:
-            logger.info(f"[UPDATE] Updating objects for project: {project_id}")
-            logger.info(f"   Objects: {objects}")
-            
-            response = requests.post(
-                f"{self.server_url}/api/worker/projects/{project_id}/update-objects",
-                headers=self.headers,
-                json={"objects": objects},
-                timeout=10
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"[ERROR] Failed to update objects: {response.text}")
-                return False
-            
-            logger.info(f"[OK] Objects updated successfully")
-            
-            return True
+            logger.error(f"[ERROR] Error scanning projects: {e}")
         
-        except Exception as e:
-            logger.error(f"[ERROR] Error updating objects: {e}")
-            return False
-    
-    def upload_3d_model(self, project_id: str, owner_id: str, model_path: str) -> bool:
-        """Uploaduj 3D model"""
-        try:
-            logger.info(f"[PROCESSING] Uploading 3D model for project: {project_id}")
-            
-            if not os.path.exists(model_path):
-                logger.error(f"[ERROR] Model file not found: {model_path}")
-                return False
-            
-            file_size_mb = os.path.getsize(model_path) / (1024 * 1024)
-            logger.info(f"   File size: {file_size_mb:.2f} MB")
-            
-            # Uploaduj súbor
-            with open(model_path, "rb") as f:
-                files = {"file": (Path(model_path).name, f, "application/octet-stream")}
-                
-                response = requests.post(
-                    f"{self.server_url}/api/worker/projects/{project_id}/upload-3d-model",
-                    headers={"Authorization": self.headers.get("Authorization")},
-                    files=files,
-                    params={"owner_id": owner_id},
-                    timeout=60
-                )
-            
-            if response.status_code != 200:
-                logger.error(f"[ERROR] Failed to upload model: {response.text}")
-                return False
-            
-            data = response.json()
-            logger.info(f"[OK] Model uploaded: {data.get('filename')}")
-            
-            return True
-        
-        except Exception as e:
-            logger.error(f"[ERROR] Error uploading model: {e}")
-            return False
-
-# ============================================
-# FORMATTING HELPER
-# ============================================
+        return projects
 
 def format_detected_objects(objects_dict: Dict[str, int]) -> str:
     """
@@ -273,152 +142,212 @@ def run_yolo_detection(images_dir: str) -> Optional[str]:
     Spusti YOLO rekonštrukciu na detekciu objektov
     
     Vrací: "Bed 1-3, Notebook 1-2, Table 1, ..."
-    Format:
-    - 1 objekt: "Object 1"
-    - Viac objektov: "Object 1-X"
     """
     try:
         logger.info(f"[YOLO] Running YOLO detection on: {images_dir}")
         
-        # TODO: Integrácia s YOLO modelom
-        # Príklad s ultralytics:
-        # from ultralytics import YOLO
-        # model = YOLO('yolov8l.pt')
-        # results = model.predict(source=images_dir, conf=0.5)
+        # Import YOLO
+        try:
+            from ultralytics import YOLO
+        except ImportError:
+            logger.error(f"[ERROR] ultralytics not installed. Install with: pip install ultralytics")
+            return None
         
-        # Parsuj výsledky a spočítaj objekty...
+        # Load configuration from env
+        model_name = os.getenv("YOLO_MODEL", "yolov8l.pt")
+        confidence = float(os.getenv("YOLO_CONFIDENCE", "0.5"))
+        device = os.getenv("YOLO_DEVICE", "0")
         
-        # Príklad dummy výstup pre testing:
-        logger.info("   [INFO] YOLO integration not implemented yet")
-        logger.info("   Using dummy results for testing...")
+        logger.info(f"   Model: {model_name} | Confidence: {confidence} | Device: {device}")
         
-        # Dummy detekcia - počet objektov
-        detected_counts = {
-            "Bed": 3,
-            "Notebook": 2,
-            "Table": 1,
-            "Chair": 5,
-            "Lamp": 2,
-            "Window": 1
-        }
+        # Load model
+        logger.info(f"   Loading model: {model_name}...")
+        model = YOLO(model_name)
         
-        # Formatuj objekty
+        # Get all images
+        images_path = Path(images_dir)
+        image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff'}
+        image_files = [f for f in images_path.iterdir() 
+                       if f.is_file() and f.suffix.lower() in image_extensions]
+        
+        if not image_files:
+            logger.error(f"[ERROR] No images found in: {images_dir}")
+            return None
+        
+        logger.info(f"   Processing {len(image_files)} images...")
+        
+        # Run detection on all images
+        results = model.predict(
+            source=str(images_path),
+            conf=confidence,
+            device=device,
+            verbose=False,
+            stream=False
+        )
+        
+        # Count detected objects by class
+        detected_counts = {}
+        for result in results:
+            if result.boxes is not None and len(result.boxes) > 0:
+                for box in result.boxes:
+                    class_id = int(box.cls[0])
+                    class_name = result.names[class_id]
+                    detected_counts[class_name] = detected_counts.get(class_name, 0) + 1
+        
+        if not detected_counts:
+            logger.warning(f"[WARN] No objects detected")
+            return None
+        
         detected_objects = format_detected_objects(detected_counts)
-        
         logger.info(f"[OK] Detection complete: {detected_objects}")
         return detected_objects
     
     except Exception as e:
-        logger.error(f"[ERROR] YOLO error: {e}")
+        logger.error(f"[ERROR] YOLO error: {e}", exc_info=True)
         return None
 
-def run_colmap_reconstruction(images_dir: str, output_model: str) -> bool:
+def run_nerfstudio_reconstruction(images_dir: str, output_model: str) -> bool:
     """
-    Spusti COLMAP na generovanie 3D modelu
+    Spusti Nerfstudio na generovanie 3D modelu
     
     Výstup: PLY súbor v output_model
     """
     try:
-        logger.info(f"[COLMAP] Running COLMAP 3D reconstruction on: {images_dir}")
+        logger.info(f"[NERFSTUDIO] Running NeRF reconstruction on: {images_dir}")
         
-        # TODO: Integrácia s COLMAP
-        # Príklad príkazový riadok:
-        # os.system(f"colmap automatic_reconstructor --image_path {images_dir} --workspace_path {output_dir}")
+        images_path = Path(images_dir)
+        if not images_path.exists() or not list(images_path.glob("*")):
+            logger.error(f"[ERROR] No images found in: {images_dir}")
+            return False
         
-        logger.info("   [INFO] COLMAP integration not implemented yet")
-        logger.info("   Creating dummy PLY file for testing...")
+        import subprocess
         
-        # Príklad dummy PLY súbor
-        ply_header = """ply
-format binary_little_endian 1.0
-element vertex 8
-property float x
-property float y
-property float z
-property uchar red
-property uchar green
-property uchar blue
-element face 6
-property list uchar int vertex_indices
-end_header
-"""
+        output_dir = Path(output_model).parent
+        processed_dir = output_dir / "processed_images"
+        output_dir.mkdir(parents=True, exist_ok=True)
         
-        import struct
+        # Suppress Nerfstudio warnings that are not fatal
+        env = {
+            **os.environ,
+            'PYTHONIOENCODING': 'utf-8',
+            'PYTHONWARNINGS': 'ignore::FutureWarning,ignore::RuntimeWarning',
+        }
         
-        with open(output_model, "wb") as f:
-            f.write(ply_header.encode())
-            
-            # Dummy vertices (kocka)
-            vertices = [
-                (-1, -1, -1), (1, -1, -1), (1, 1, -1), (-1, 1, -1),
-                (-1, -1, 1), (1, -1, 1), (1, 1, 1), (-1, 1, 1),
+        # ============================================
+        # STEP 1: Process images with ns-process-data
+        # ============================================
+        logger.info(f"   -> Step 1: Processing images with ns-process-data...")
+        
+        cmd_process = (
+            f'chcp 65001 && '
+            f'conda activate nerfstudio && '
+            f'ns-process-data images '
+            f'--data "{images_path}" '
+            f'--output-dir "{processed_dir}"'
+        )
+        
+        result = subprocess.run(
+            ['cmd', '/c', cmd_process],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=1800  # 30 minute timeout for processing
+        )
+        
+        if result.returncode != 0:
+            # Filter out non-fatal warnings
+            stderr_lines = result.stderr.split('\n')
+            real_errors = [
+                line for line in stderr_lines
+                if line and not any(warning in line for warning in [
+                    'RuntimeWarning', 'FutureWarning', 'torch.compile', 
+                    'torch.cuda.amp', 'DeprecationWarning'
+                ])
             ]
             
-            for x, y, z in vertices:
-                # Position + RGB color
-                f.write(struct.pack('<fff', x, y, z))
-                f.write(struct.pack('BBB', 255, 128, 0))  # Orange
-            
-            # Dummy faces (6 faces kocky)
-            faces = [
-                (0, 1, 2), (0, 2, 3),  # Bottom
-                (4, 6, 5), (4, 7, 6),  # Top
-                (0, 4, 5), (0, 5, 1),  # Front
-                (2, 6, 7), (2, 7, 3),  # Back
+            if real_errors:
+                logger.error(f"[ERROR] Image processing failed: {real_errors[0][:200]}")
+                return False
+        
+        logger.info(f"   [OK] Images processed successfully")
+        
+        # ============================================
+        # STEP 2: Train NeRF model with ns-train
+        # ============================================
+        logger.info(f"   -> Step 2: Training NeRF model...")
+        
+        cmd_train = (
+            f'chcp 65001 && '
+            f'conda activate nerfstudio && '
+            f'ns-train nerfacto '
+            f'--data "{processed_dir}" '
+            f'--output-dir "{output_dir}" '
+            f'--experiment-name nerfstudio_{int(time.time())}'
+        )
+        
+        logger.info(f"[CMD] {cmd_train[:100]}...")
+        
+        result = subprocess.run(
+            ['cmd', '/c', cmd_train],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=3600  # 1 hour timeout
+        )
+        
+        # Check for real errors (not just warnings)
+        if result.returncode != 0:
+            # Filter out known non-fatal warnings
+            stderr_lines = result.stderr.split('\n')
+            real_errors = [
+                line for line in stderr_lines
+                if line and not any(warning in line for warning in [
+                    'RuntimeWarning',
+                    'FutureWarning',
+                    'torch.compile',
+                    'torch.cuda.amp',
+                    'DeprecationWarning'
+                ])
             ]
             
-            for face in faces:
-                f.write(struct.pack('B', 3))  # 3 vertices
-                f.write(struct.pack('III', face[0], face[1], face[2]))
+            if real_errors:
+                logger.error(f"[ERROR] Nerfstudio error: {real_errors[0][:200]}")
+                return False
+            else:
+                # Only warnings, might still be working
+                logger.info(f"[OK] Training completed (with non-fatal warnings)")
+                return True
         
-        logger.info(f"[OK] Model generated: {output_model}")
+        logger.info(f"[OK] Nerfstudio reconstruction complete")
         return True
     
-    except Exception as e:
-        logger.error(f"[ERROR] COLMAP error: {e}")
+    except subprocess.TimeoutExpired:
+        logger.error(f"[ERROR] Nerfstudio timeout (exceeded timeout)")
         return False
-
-def cleanup_project_dir(project_dir: str):
-    """Vymaž pracovný priečinok"""
-    try:
-        if os.path.exists(project_dir):
-            shutil.rmtree(project_dir)
-            logger.info(f"[CLEANUP] Cleaned up: {project_dir}")
     except Exception as e:
-        logger.error(f"[ERROR] Cleanup error: {e}")
+        logger.error(f"[ERROR] Nerfstudio error: {e}")
+        return None
 
 # ============================================
 # WORKER LOOP
 # ============================================
 
 def run_worker_loop(
-    server_url: str,
-    admin_username: str,
-    admin_password: str,
-    work_dir: str = "/tmp/3d-worker",
+    projects_path: str,
     sleep_seconds: int = 60,
     yolo_enabled: bool = True,
-    colmap_enabled: bool = True
+    nerfstudio_enabled: bool = False
 ):
-    """Spusti worker loop"""
+    """Spusti worker loop - lokálne spracovanie"""
     
     logger.info(f"[START] Starting Worker Loop")
-    logger.info(f"   Server URL: {server_url}")
-    logger.info(f"   Work Dir: {work_dir}")
+    logger.info(f"   Projects Path: {projects_path}")
     logger.info(f"   Check Interval: {sleep_seconds}s")
     logger.info(f"   YOLO Enabled: {yolo_enabled}")
-    logger.info(f"   COLMAP Enabled: {colmap_enabled}")
+    logger.info(f"   NERFSTUDIO Enabled: {nerfstudio_enabled}")
     
-    # Vytvor priečinok
-    Path(work_dir).mkdir(parents=True, exist_ok=True)
-    
-    # Inicializuj klienta
-    client = WorkerClient(server_url, admin_username, admin_password)
-    
-    # Prihlásenie
-    if not client.login():
-        logger.error("[ERROR] Cannot login, exiting...")
-        return
+    # Inicializuj scanner
+    scanner = ProjectScanner(projects_path)
     
     # Worker loop
     iteration = 0
@@ -430,78 +359,50 @@ def run_worker_loop(
             logger.info(f"ITERATION {iteration} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             logger.info(f"{'='*70}")
             
-            # 1. Načítaj pending projekty
-            projects = client.get_pending_projects()
+            # 1. Skenuj všetky projekty
+            projects = scanner.get_all_projects()
+            logger.info(f"[PROJECTS] Found {len(projects)} projects")
             
-            if not projects:
-                logger.info("[INFO] No projects to process")
+            # 2. Filtuj len tie bez 3D modelu
+            projects_to_process = [p for p in projects if not p["has_model"] and p["image_count"] >= 5]
+            
+            if not projects_to_process:
+                logger.info("[INFO] No projects to process (all have models)")
             
             else:
-                # 2. Spracuj prvý pending projekt
-                project = projects[0]
-                project_id = project["id"]
-                owner_id = project["owner_id"]
-                project_name = project["name"]
-                objects = project.get("objects")
-                status = project.get("status")
+                # 3. Spracuj prvý projekt
+                project = projects_to_process[0]
+                user_id = project["user_id"]
+                project_id = project["project_id"]
+                images_dir = project["images_path"]
+                model_dir = project["model_path"]
+                image_count = project["image_count"]
                 
-                logger.info(f"\n[PROCESSING] {project_name} (ID: {project_id})")
-                logger.info(f"   Status: {status} | Objects: {objects}")
+                logger.info(f"\n[PROCESSING] {project_id}")
+                logger.info(f"   User: {user_id}")
+                logger.info(f"   Images: {image_count}")
+                logger.info(f"   Path: {images_dir}")
                 
-                project_work_dir = Path(work_dir) / project_id
-                
-                # 3. Ak objects je null/empty a YOLO je enabled, spusti YOLO
-                if (objects is None or objects == "") and yolo_enabled:
+                # 4. YOLO detection (optional)
+                if yolo_enabled:
                     logger.info(f"   -> Step 1: Running YOLO detection...")
-                    
-                    # Stiahni fotky
-                    if client.download_images(project_id, owner_id, str(project_work_dir.parent)):
-                        
-                        # Spusti YOLO
-                        images_dir = project_work_dir / "images"
-                        detected_objects = run_yolo_detection(str(images_dir))
-                        
-                        if detected_objects:
-                            # Aktualizuj v Supabase
-                            if client.update_objects(project_id, detected_objects):
-                                logger.info(f"   [OK] YOLO detection complete")
-                            else:
-                                logger.error(f"   [ERROR] Failed to update objects")
-                        else:
-                            logger.error(f"   [ERROR] YOLO detection failed")
-                
-                elif (objects is None or objects == "") and not yolo_enabled:
-                    logger.info(f"   [INFO] YOLO detection disabled (objects=null/empty)")
-                
-                # 4. Ak status je pending a COLMAP je enabled, spusti COLMAP na 3D model
-                if status == "pending" and colmap_enabled:
-                    logger.info(f"   -> Step 2: Running COLMAP 3D reconstruction...")
-                    
-                    images_dir = project_work_dir / "images"
-                    model_path = project_work_dir / "model.ply"
-                    
-                    # Skontroluj či existujú fotky
-                    if not images_dir.exists() or not list(images_dir.glob("*")):
-                        # Stiahni ak neexistujú
-                        logger.info(f"   Downloading images first...")
-                        client.download_images(project_id, owner_id, str(project_work_dir.parent))
-                    
-                    # Spusti COLMAP
-                    if run_colmap_reconstruction(str(images_dir), str(model_path)):
-                        
-                        # Uploaduj model
-                        if client.upload_3d_model(project_id, owner_id, str(model_path)):
-                            logger.info(f"   [OK] COLMAP reconstruction complete")
-                        else:
-                            logger.error(f"   [ERROR] Failed to upload model")
+                    detected_objects = run_yolo_detection(images_dir)
+                    if detected_objects:
+                        logger.info(f"   [OK] Detected: {detected_objects}")
                     else:
-                        logger.error(f"   [ERROR] COLMAP reconstruction failed")
+                        logger.warning(f"   [WARN] YOLO detection failed")
                 
-                elif status == "pending" and not colmap_enabled:
-                    logger.info(f"   [INFO] COLMAP disabled (status=pending)")
-                
-                # 5. Čisti pracovný priečinok
-                cleanup_project_dir(str(project_work_dir))
+                # 5. Nerfstudio 3D reconstruction
+                if nerfstudio_enabled:
+                    logger.info(f"   -> Step 2: Running Nerfstudio 3D reconstruction...")
+                    
+                    Path(model_dir).mkdir(parents=True, exist_ok=True)
+                    model_path = Path(model_dir) / "pointcloud.ply"
+                    
+                    if run_nerfstudio_reconstruction(images_dir, str(model_path)):
+                        logger.info(f"   [OK] Model generated at: {model_path}")
+                    else:
+                        logger.error(f"   [ERROR] Reconstruction failed")
         
         except Exception as e:
             logger.error(f"[ERROR] Error in worker loop iteration: {e}", exc_info=True)
@@ -510,42 +411,30 @@ def run_worker_loop(
         logger.info(f"\n[WAIT] Sleeping for {sleep_seconds}s...")
         time.sleep(sleep_seconds)
 
-# ============================================
-# MAIN
-# ============================================
-
 if __name__ == "__main__":
     import sys
     
     # Konfigurácia z environment variables alebo defaults
-    SERVER_URL = os.getenv("WORKER_SERVER_URL", "http://localhost:8000")
-    ADMIN_USERNAME = os.getenv("WORKER_ADMIN_USER", "admin")
-    ADMIN_PASSWORD = os.getenv("WORKER_ADMIN_PASS", "admin123")
-    WORK_DIR = os.getenv("WORKER_WORK_DIR", "/tmp/3d-worker")
+    PROJECTS_PATH = os.getenv("PROJECTS_PATH", "./projects")
     SLEEP_SECONDS = int(os.getenv("WORKER_SLEEP_SECONDS", "60"))
     
     # Processing options
-    YOLO_ENABLED = os.getenv("YOLO_ENABLED", "true").lower() == "true"
-    COLMAP_ENABLED = os.getenv("COLMAP_ENABLED", "true").lower() == "true"
+    YOLO_ENABLED = os.getenv("YOLO_ENABLED", "false").lower() == "true"
+    NERFSTUDIO_ENABLED = os.getenv("NERFSTUDIO_ENABLED", "true").lower() == "true"
     
     logger.info(f"Configuration:")
-    logger.info(f"  SERVER_URL: {SERVER_URL}")
-    logger.info(f"  ADMIN_USERNAME: {ADMIN_USERNAME}")
-    logger.info(f"  WORK_DIR: {WORK_DIR}")
+    logger.info(f"  PROJECTS_PATH: {PROJECTS_PATH}")
     logger.info(f"  SLEEP_SECONDS: {SLEEP_SECONDS}")
     logger.info(f"  YOLO_ENABLED: {YOLO_ENABLED}")
-    logger.info(f"  COLMAP_ENABLED: {COLMAP_ENABLED}")
+    logger.info(f"  NERFSTUDIO_ENABLED: {NERFSTUDIO_ENABLED}")
     
     # Spusti worker loop
     try:
         run_worker_loop(
-            server_url=SERVER_URL,
-            admin_username=ADMIN_USERNAME,
-            admin_password=ADMIN_PASSWORD,
-            work_dir=WORK_DIR,
+            projects_path=PROJECTS_PATH,
             sleep_seconds=SLEEP_SECONDS,
             yolo_enabled=YOLO_ENABLED,
-            colmap_enabled=COLMAP_ENABLED
+            nerfstudio_enabled=NERFSTUDIO_ENABLED
         )
     except KeyboardInterrupt:
         logger.info("\n[STOP] Worker stopped by user")

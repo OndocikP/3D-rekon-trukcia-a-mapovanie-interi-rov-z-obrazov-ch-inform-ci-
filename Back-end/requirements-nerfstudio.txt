@@ -1,0 +1,42 @@
+# requirements-nerfstudio.txt
+# Doplnkové balíčky pre Nerfstudio integráciu
+
+# Základné balíčky (sú už v requirements.txt)
+# fastapi==0.104.1
+# uvicorn==0.24.0
+# pydantic==2.5.0
+
+# Nerfstudio a NeRF
+nerfstudio>=0.3.4
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Model utility
+trimesh>=3.17.0          # PLY/OBJ/glTF konverzia
+numpy>=1.23.0            # Numerické výpočty
+scipy>=1.9.0             # Vedecké výpočty
+
+# Obrázkovanie
+Pillow>=9.0.0            # Obrázková knižnica
+opencv-python>=4.5.0     # Počítačové videnie
+
+# Async a paralelizácia
+asyncio-contextmanager>=1.0.0
+concurrent-futures>=3.1.1
+
+# Testing
+pytest>=7.0.0
+pytest-asyncio>=0.20.0
+pytest-cov>=4.0.0
+
+# Monitoring
+psutil>=5.9.0            # Systémové metriky
+
+# Záznam a debugging
+loguru>=0.6.0            # Pokročilé logovania
+python-json-logger>=2.0.0  # JSON logging
+
+# Konfigurácia
+python-dotenv>=0.21.0    # .env súbory
+pyyaml>=6.0              # YAML konfigurácia

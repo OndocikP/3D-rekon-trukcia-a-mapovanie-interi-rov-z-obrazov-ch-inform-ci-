@@ -11,6 +11,8 @@ import os
 from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
+import subprocess
+import threading
 
 # Načítaj .env
 load_dotenv()
@@ -557,6 +559,153 @@ async def get_project_media_file(project_id: str, media_type: str, filename: str
     except Exception as e:
         print(f"❌ Error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+
+# ============================================
+# 3D MODEL GENERATION
+# ============================================
+
+@app.post("/api/projects/{user_id}/{project_id}/generate-3d-model")
+async def trigger_3d_model_generation(
+    user_id: str,
+    project_id: str,
+    authorization: Optional[str] = Header(None),
+    async_mode: bool = Query(False, description="Spustí training asyncne v pozadí")
+):
+    """
+    Spustenie generácie 3D modelu pomocou Nerfstudio
+    - async_mode=True: Spustí v worker procese v pozadí (rýchlo sa vráti)
+    - async_mode=False: Spustí synchronne (čaká na výsledok)
+    """
+    try:
+        if not authorization:
+            raise HTTPException(status_code=401, detail="No token provided")
+        
+        print(f"\n🚀 GENERATE 3D MODEL ENDPOINT")
+        print(f"   user_id: {user_id}")
+        print(f"   project_id: {project_id}")
+        print(f"   async_mode: {async_mode}")
+        
+        # Skontroluj či projekt existuje
+        projects_path = os.getenv('PROJECTS_PATH', Path(__file__).parent / 'projects')
+        project_path = Path(projects_path) / user_id / project_id
+        
+        if not project_path.exists():
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        images_path = project_path / "images"
+        if not images_path.exists() or not list(images_path.glob("*")):
+            raise HTTPException(status_code=400, detail="No images in project")
+        
+        # Ak je asyncne, spustí v background worker
+        if async_mode:
+            print("⏳ Spúšťam async worker...")
+            
+            def run_worker():
+                try:
+                    result = subprocess.run(
+                        ["python", "worker_3d_models.py", user_id, project_id],
+                        cwd=Path(__file__).parent,
+                        capture_output=True,
+                        text=True
+                    )
+                    print(f"✅ Worker dokončený: {result.stdout}")
+                    if result.returncode != 0:
+                        print(f"❌ Worker error: {result.stderr}")
+                except Exception as e:
+                    print(f"❌ Worker exception: {e}")
+            
+            # Spustí worker v separátnom vlákne
+            worker_thread = threading.Thread(target=run_worker, daemon=True)
+            worker_thread.start()
+            
+            return {
+                "status": "generation_started",
+                "message": "3D model generation started in background",
+                "project_id": project_id,
+                "user_id": user_id,
+                "async": True
+            }
+        
+        # Synchronné spustenie (dlhší čas čakania)
+        else:
+            print("⏳ Spúšťam synchronný training...")
+            
+            try:
+                from generate_3d_models import NerfstudioTrainer
+                
+                trainer = NerfstudioTrainer(project_path, project_id, user_id)
+                result = trainer.process_project()
+                
+                if result:
+                    return {
+                        "status": "success",
+                        "message": "3D model generated successfully",
+                        "project_id": project_id,
+                        "user_id": user_id
+                    }
+                else:
+                    raise HTTPException(status_code=400, detail="Model generation failed")
+                    
+            except Exception as e:
+                print(f"❌ Error: {e}")
+                raise HTTPException(status_code=400, detail=f"Generation error: {str(e)}")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/projects/batch/generate-all-models")
+async def generate_all_3d_models(
+    authorization: Optional[str] = Header(None),
+    force: bool = Query(False, description="Vygeneruj aj existujúce modely znova")
+):
+    """
+    Hromadné generovanie 3D modelov pre všetky projekty bez modelov
+    - Spustí sa v async worker procese
+    - force=True: Vygeneruje aj existujúce modely znova
+    """
+    try:
+        if not authorization:
+            raise HTTPException(status_code=401, detail="No token provided")
+        
+        print(f"\n🚀 BATCH GENERATE 3D MODELS ENDPOINT")
+        print(f"   force: {force}")
+        
+        def run_batch_worker():
+            try:
+                args = ["python", "generate_3d_models.py"]
+                if force:
+                    args.append("--force")
+                
+                result = subprocess.run(
+                    args,
+                    cwd=Path(__file__).parent,
+                    capture_output=True,
+                    text=True
+                )
+                print(f"✅ Batch worker dokončený:\n{result.stdout}")
+                if result.returncode != 0:
+                    print(f"❌ Batch worker error:\n{result.stderr}")
+            except Exception as e:
+                print(f"❌ Batch worker exception: {e}")
+        
+        # Spustí batch worker v separátnom vlákne
+        batch_thread = threading.Thread(target=run_batch_worker, daemon=True)
+        batch_thread.start()
+        
+        return {
+            "status": "batch_generation_started",
+            "message": "Batch 3D model generation started in background",
+            "force": force
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================
 # ADMIN
