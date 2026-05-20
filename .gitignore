@@ -56,3 +56,6 @@ venv/
 *.obj
 *.mtl
 *.stl
+
+# Backend project outputs
+Back-end/projects/**

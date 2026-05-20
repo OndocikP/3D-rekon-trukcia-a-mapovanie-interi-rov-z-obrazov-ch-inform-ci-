@@ -7,7 +7,16 @@ import os
 import subprocess
 from pathlib import Path
 import sys
+import signal
+import time
 from dotenv import load_dotenv
+from supabase_comunication import (
+    get_oldest_pending_project,
+    get_all_projects,
+    update_project_status,
+    update_project_objects,
+    increment_project_try
+)
 
 # Load .env
 load_dotenv()
@@ -32,6 +41,7 @@ def run_process_data(images_path: Path, step1_dir: Path) -> bool:
             f"cd /d {NERFSTUDIO_PATH} && "
             f"conda activate nerfstudio && "
             f"ns-process-data images "
+            f"--num-downscales 2 "
             f"--data {images_path} "
             f"--output-dir {step1_dir}"
         )
@@ -62,6 +72,7 @@ def run_process_data(images_path: Path, step1_dir: Path) -> bool:
 def run_train_nerf(step1_dir: Path, step2_dir: Path) -> bool:
     """
     STEP 2: Train NeRF model using ns-train
+    Číta výstup a hľadá "Training Finished", potom ukončí proces
     """
     print(f"   Step 2: Training NeRF model with ns-train (60 min)...")
     print(f"      📁 Data:   {step1_dir}")
@@ -79,26 +90,77 @@ def run_train_nerf(step1_dir: Path, step2_dir: Path) -> bool:
             f"--output-dir {step2_dir}"
         )
         
-        result = subprocess.run(
+        # Spusti proces s Popen aby bolo možné čítať výstup v reálnom čase
+        process = subprocess.Popen(
             ['cmd', '/c', cmd],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
-            timeout=10800,  # 3 hodiny
-            env=env
+            encoding='utf-8',
+            errors='replace',
+            env=env,
+            bufsize=1
         )
         
-        if result.returncode != 0:
-            print(f"   ❌ ns-train failed")
-            print(f"   Return code: {result.returncode}")
+        training_finished = False
+        
+        # Čítaj výstup riadok po riadku
+        try:
+            for line in process.stdout:
+                print(line, end='')  # Vypiš output
+                
+                # Hľadaj "Training Finished"
+                if "Training Finished" in line:
+                    print(f"\n   ✅ Training finished detekovaný!")
+                    training_finished = True
+                    print(f"   ⏳ Čakám 5 sekúnd pred ukončením...\n")
+                    time.sleep(5)
+                    break
+        
+        except Exception as e:
+            print(f"   ❌ Chyba pri čítaní výstupu: {e}")
+            process.kill()
             return False
         
-        print(f"   ✅ Step 2 hotový!\n")
-        return True
+        # Poslať terminate ak bol training_finished
+        if training_finished:
+            try:
+                print(f"   📤 Ukončujem proces (terminate)...\n")
+                process.terminate()  # Graceful shutdown
+                
+                # Počkaj aby sa proces ukončil
+                try:
+                    process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    print(f"   ⚠️  Proces sa neukončil, force kill...")
+                    process.kill()
+                    process.wait()
+                
+                print(f"   ✅ Step 2 hotový!\n")
+                return True
+                
+            except Exception as e:
+                print(f"   ❌ Chyba pri ukončení procesu: {e}")
+                try:
+                    process.kill()
+                except:
+                    pass
+                return False
+        else:
+            # Ak nie je training_finished, čakaj na koniec procesu
+            process.wait(timeout=10800)  # 3 hodiny
+            print(f"   ❌ Training Finished nebol detekovaný")
+            return False
         
     except subprocess.TimeoutExpired:
         print(f"   ❌ ns-train timeout (operácia trvala >3 hodiny)")
+        if 'process' in locals():
+            process.kill()
         return False
     except Exception as e:
         print(f"   ❌ ns-train error: {e}")
+        if 'process' in locals():
+            process.kill()
         return False
 
 
@@ -145,9 +207,15 @@ def run_export_pointcloud(config_path: Path, model_dir: Path) -> bool:
         return False
 
 
-def run_nerfstudio_reconstruction(images_dir: str, output_model: str, status: str) -> bool:
+def run_nerfstudio_reconstruction(images_dir: str, output_model: str, status: str, project_id: str) -> bool:
     """
     Spusti Nerfstudio na generovanie 3D modelu
+    
+    Args:
+        images_dir: Cesta k priečinku s obrazmi
+        output_model: Cesta k výstupnému PLY súboru
+        status: Aktuálny status projektu
+        project_id: ID projektu (na update Supabase)
     
     Výstup: PLY súbor v output_model
     """

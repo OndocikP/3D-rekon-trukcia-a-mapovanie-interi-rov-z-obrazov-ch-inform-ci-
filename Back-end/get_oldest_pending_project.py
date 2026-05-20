@@ -222,13 +222,9 @@ def spracuj_projekt():
             if project.get('status') != "generated":
                 print("🚀 Spúšťam 3D Generovanie...\n")
                 
-                # Update status na processing
-
-                #update_project_status(project_id, "procesing")
-                
                 # Run Nerfstudio
                 model_output = project_path + "/3Dmodel/model.ply"
-                success = run_nerfstudio_reconstruction(project_path + "/images", model_output, project.get('status'))
+                success = run_nerfstudio_reconstruction(project_path + "/images", model_output, project.get('status'), project_id)
 
                 if success:
                     print(f"✅ Úspešné vytvorenie 3D modelu")
