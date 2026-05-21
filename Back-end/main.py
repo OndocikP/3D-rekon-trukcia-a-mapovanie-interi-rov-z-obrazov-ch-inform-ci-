@@ -13,6 +13,16 @@ from typing import Optional
 from dotenv import load_dotenv
 import subprocess
 import threading
+import zipfile
+import io
+
+# Password reset import
+from password_reset import (
+    send_password_reset_email,
+    create_reset_token,
+    verify_reset_code,
+    reset_password_with_code
+)
 
 # Načítaj .env
 load_dotenv()
@@ -64,6 +74,29 @@ class AuthResponse(BaseModel):
     user_id: str
     role: str
     token: Optional[str] = None
+
+# ============================================
+# PASSWORD RESET SCHÉMY
+# ============================================
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+    """Email adresa na obnovenie hesla"""
+
+class VerifyResetCodeRequest(BaseModel):
+    email: str
+    reset_code: str
+    """6-ciferný kód poslany na email"""
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    reset_code: str
+    new_password: str
+    """Nové heslo"""
+
+class ResetPasswordResponse(BaseModel):
+    success: bool
+    message: str
 
 # ============================================
 # HEALTH CHECK
@@ -134,6 +167,140 @@ async def register(request: RegisterRequest):
             }
         }
     except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# ============================================
+# PASSWORD RESET ENDPOINTS
+# ============================================
+
+@app.post("/api/auth/forgot-password")
+async def forgot_password(request: ForgotPasswordRequest):
+    """
+    Požiadať o obnovenie hesla
+    Pošle reset kód na email
+    """
+    try:
+        print(f"\n🔑 FORGOT PASSWORD ENDPOINT")
+        print(f"   email: {request.email}")
+        
+        # Skontroluj či užívateľ existuje
+        user_response = supabase.table("users") \
+            .select("id, username") \
+            .eq("email", request.email) \
+            .execute()
+        
+        if not user_response.data or len(user_response.data) == 0:
+            print(f"⚠️ Užívateľ s emailom {request.email} neexistuje")
+            # Z bezpečnostných dôvodov nehovoríme či email existuje alebo nie
+            return {
+                "success": True,
+                "message": "Ak existuje účet s týmto emailom, obdržíš email s inštrukciami"
+            }
+        
+        user = user_response.data[0]
+        username = user.get('username', 'Užívateľ')
+        
+        # Vytvor reset token
+        reset_code = create_reset_token(request.email)
+        
+        # Pošli email
+        email_sent = send_password_reset_email(
+            email=request.email,
+            reset_code=reset_code,
+            username=username
+        )
+        
+        if not email_sent:
+            print(f"❌ Chyba pri odosielaní emailu")
+            raise HTTPException(
+                status_code=500,
+                detail="Chyba pri odosielaní emailu. Skús neskôr."
+            )
+        
+        print(f"✅ Reset email poslal na {request.email}")
+        return {
+            "success": True,
+            "message": "Email s kódom na obnovenie hesla bol poslal"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/auth/verify-reset-code")
+async def verify_reset_code_endpoint(request: VerifyResetCodeRequest):
+    """
+    Overuj reset kód
+    """
+    try:
+        print(f"\n🔑 VERIFY RESET CODE ENDPOINT")
+        print(f"   email: {request.email}")
+        print(f"   code: {request.reset_code}")
+        
+        verification = verify_reset_code(request.email, request.reset_code)
+        
+        if not verification['valid']:
+            print(f"❌ {verification['message']}")
+            raise HTTPException(
+                status_code=400,
+                detail=verification['message']
+            )
+        
+        print(f"✅ Reset kód je platný")
+        return {
+            "valid": True,
+            "message": "Kód je platný, môžeš obnoviť heslo"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/auth/reset-password", response_model=ResetPasswordResponse)
+async def reset_password(request: ResetPasswordRequest):
+    """
+    Obnoviť heslo s reset kódom
+    """
+    try:
+        print(f"\n🔑 RESET PASSWORD ENDPOINT")
+        print(f"   email: {request.email}")
+        print(f"   code: {request.reset_code}")
+        
+        # Validuj vstup
+        if not request.new_password or len(request.new_password) < 6:
+            raise HTTPException(
+                status_code=400,
+                detail="Heslo musí mať aspoň 6 znakov"
+            )
+        
+        # Obnoviť heslo
+        result = reset_password_with_code(
+            email=request.email,
+            reset_code=request.reset_code,
+            new_password=request.new_password
+        )
+        
+        if not result['success']:
+            print(f"❌ {result['message']}")
+            raise HTTPException(
+                status_code=400,
+                detail=result['message']
+            )
+        
+        print(f"✅ Heslo bolo obnovené pre {request.email}")
+        return {
+            "success": True,
+            "message": result['message']
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 # ============================================
@@ -434,6 +601,69 @@ async def get_3d_model_content(project_id: str):
         raise
     except Exception as e:
         print(f"❌ Error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/projects/{project_id}/3d-model/download-all")
+async def download_3d_model_all(project_id: str):
+    """Stiahni všetky súbory z 3Dmodel priečinka ako ZIP"""
+    try:
+        print(f"\n📦 DOWNLOAD 3D MODEL ZIP ENDPOINT")
+        print(f"   project_id: {project_id}")
+        
+        # Nájsť 3Dmodel priečinok
+        projects_path = os.getenv('PROJECTS_PATH', Path(__file__).parent / 'routers' / 'projects')
+        projects_root = Path(projects_path)
+        
+        model_dir = None
+        
+        if projects_root.exists():
+            for user_dir in projects_root.iterdir():
+                if user_dir.is_dir():
+                    potential_model_dir = user_dir / project_id / '3Dmodel'
+                    if potential_model_dir.exists():
+                        model_dir = potential_model_dir
+                        break
+        
+        if not model_dir or not model_dir.exists():
+            print(f"❌ 3Dmodel priečinok not found for project_id: {project_id}")
+            raise HTTPException(status_code=404, detail="3Dmodel folder not found")
+        
+        # Skontroluj či priečinok obsahuje súbory
+        files_list = list(model_dir.glob('*'))
+        if not files_list:
+            print(f"⚠️ 3Dmodel priečinok je prázdny: {model_dir}")
+            raise HTTPException(status_code=404, detail="No files in 3Dmodel folder")
+        
+        print(f"✅ Nájdených {len(files_list)} súborov v {model_dir}")
+        for f in files_list:
+            print(f"   - {f.name}")
+        
+        # Vytvor ZIP v pamäti
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for file_path in files_list:
+                if file_path.is_file():
+                    arcname = file_path.name  # Názov v ZIP bez cesty
+                    zip_file.write(file_path, arcname=arcname)
+                    print(f"   ✓ {file_path.name} pridaný do ZIP")
+        
+        zip_buffer.seek(0)
+        zip_size = zip_buffer.getbuffer().nbytes
+        print(f"✅ ZIP vytvorený ({zip_size} bytes)")
+        
+        # Vráť ZIP ako download
+        return Response(
+            content=zip_buffer.getvalue(),
+            media_type="application/zip",
+            headers={"Content-Disposition": f"attachment; filename=project_{project_id}_3dmodel.zip"}
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/api/projects/{project_id}/media")

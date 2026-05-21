@@ -13,6 +13,7 @@ interface Props {
   disabled?: boolean;
   icon?: keyof typeof MaterialIcons.glyphMap;
   iconSize?: number;
+  style?: any;
 }
 
 export default function AppButton({
@@ -22,6 +23,7 @@ export default function AppButton({
   disabled = false,
   icon,
   iconSize = 22,
+  style,
 }: Props) {
   const { colors } = useColors();
 
@@ -39,6 +41,7 @@ export default function AppButton({
         !disabled && styles.shadow,
         disabled && styles.disabled,
         icon && !title && styles.iconOnly,
+        style,
       ]}
     >
       {icon && (

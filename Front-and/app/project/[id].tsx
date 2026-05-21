@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, ScrollView, Dimensions, Platform, ActivityIndicator, Alert } from 'react-native';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
 
@@ -9,6 +11,7 @@ import { MediaViewer } from '../../src/components/MediaViewer';
 import { useColors } from '../../src/theme/ColorsProvider';
 import { useAuth } from '../../src/context/AuthContext';
 import * as apiClient from '../../src/api/client';
+import { API_URL } from '../../src/utils/config';
 
 export default function ProjectDetailScreen() {
   const { colors } = useColors();
@@ -19,6 +22,7 @@ export default function ProjectDetailScreen() {
   const [loadingMedia, setLoadingMedia] = useState(false);
   const [project, setProject] = useState<apiClient.Project | null>(null);
   const [loadingProject, setLoadingProject] = useState(true);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     loadProject();
@@ -85,6 +89,52 @@ export default function ProjectDetailScreen() {
   const screenHeight = Dimensions.get('window').height;
 
   const isWeb = Platform.OS === 'web';
+
+  const handleDownload = async () => {
+    if (!id || !token) {
+      Alert.alert('Chyba', 'Project ID alebo token chýba');
+      return;
+    }
+
+    try {
+      setDownloading(true);
+      console.log(`📦 Začínam download 3D modelu pre projekt: ${id}`);
+      
+      const downloadUrl = `${API_URL}/projects/${id}/3d-model/download-all`;
+      
+      console.log(`🌐 URL: ${downloadUrl}`);
+      
+      // Stiahni ZIP
+      const fileUri = `${FileSystem.documentDirectory}project_${id}_3dmodel.zip`;
+      
+      const downloadResult = await FileSystem.downloadAsync(
+        downloadUrl,
+        fileUri
+      );
+      
+      if (downloadResult.status === 200) {
+        console.log(`✅ ZIP stiahnutý: ${fileUri}`);
+        
+        // Share/Save ZIP
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'application/zip',
+            dialogTitle: 'Uložiť 3D model',
+          });
+          console.log(`✅ ZIP zdieľaný`);
+        } else {
+          Alert.alert('Úspech', `3D model stiahnutý: ${fileUri}`);
+        }
+      } else {
+        throw new Error(`Download failed with status ${downloadResult.status}`);
+      }
+    } catch (error) {
+      console.error('❌ Download error:', error);
+      Alert.alert('Chyba', error instanceof Error ? error.message : 'Nepodarilo sa stiahnuť model');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const imageStyle = isWeb
     ? { width: Math.min(screenWidth * 0.5, 500), height: Math.min(screenWidth * 0.5, 500) }
@@ -197,11 +247,21 @@ export default function ProjectDetailScreen() {
                     params: { name: projectName },
                   })
                 }
+                style={{ flex: 1, minWidth: 90 }}
+              />
+              <AppButton
+                icon="download"
+                title="Download"
+                variant="secondary"
+                disabled={downloading || !media?.has_media}
+                onPress={handleDownload}
+                style={{ flex: 1.2, minWidth: 130 }}
               />
               <AppButton
                 icon="home"
                 title="Main"
                 onPress={() => router.replace('/main')}
+                style={{ flex: 1, minWidth: 90 }}
               />
             </View>
 
@@ -301,7 +361,10 @@ const styles = StyleSheet.create({
   buttonRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 16,
+    gap: 10,
     marginBottom: 20,
+    flexWrap: 'wrap',
+    width: '100%',
+    maxWidth: 800,
   },
 });

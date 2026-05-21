@@ -109,6 +109,33 @@ export async function forgotPassword(
 }
 
 /**
+ * Overenie reset kódu
+ */
+export async function verifyResetCode(
+  email: string,
+  resetCode: string
+): Promise<ApiResponse<{ valid: boolean; message: string }>> {
+  return apiCall("/api/auth/verify-reset-code", {
+    method: "POST",
+    body: JSON.stringify({ email, reset_code: resetCode }),
+  });
+}
+
+/**
+ * Obnovenie hesla s reset kódom
+ */
+export async function resetPassword(
+  email: string,
+  resetCode: string,
+  newPassword: string
+): Promise<ApiResponse<{ message: string }>> {
+  return apiCall("/api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ email, reset_code: resetCode, new_password: newPassword }),
+  });
+}
+
+/**
  * Získaj aktuálneho používateľa
  */
 export async function getCurrentUser(

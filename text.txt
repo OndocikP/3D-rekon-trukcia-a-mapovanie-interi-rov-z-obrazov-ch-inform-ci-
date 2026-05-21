@@ -6,13 +6,16 @@ npx expo start --port 8085
 
 cd Back-end; cls; py -m main
 
+cd Back-end; cls; py -m main-generator
+
+
 cls; py -m worker_client
 
 py -m run_backend  
 
 back end
 
-
+"dmbr caha icgq zbsh"
 
 # Spusti všetko v pozadí
 docker-compose up -d

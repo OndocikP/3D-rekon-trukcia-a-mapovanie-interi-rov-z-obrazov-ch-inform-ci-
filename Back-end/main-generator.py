@@ -245,7 +245,7 @@ def spracuj_projekt():
             
             if all_projects:
                 for proj in all_projects:
-                    print(f"   {proj['id'][:8]}... | {proj['owner_id'][:8]}... | {proj['name']} | {proj['status']} | {proj['created_at']}")
+                    print(f"   {proj['status']} | {proj['name']} | {proj.get('try', 0)} | {proj['id'][:8]}... | {proj['owner_id'][:8]}... | {proj['created_at']}")
             else:
                 print("   (Žiadne projekty)")
             print()

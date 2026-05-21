@@ -9,6 +9,7 @@ from pathlib import Path
 import sys
 import signal
 import time
+from datetime import datetime
 from dotenv import load_dotenv
 from supabase_comunication import (
     get_oldest_pending_project,
@@ -23,6 +24,42 @@ load_dotenv()
 
 # Nerfstudio config
 NERFSTUDIO_PATH = os.getenv("NERFSTUDIO_PATH", "C:\\Users\\papo1\\nerfstudio\\nerfstudio")
+
+
+def find_config_yml(search_dir: Path) -> Path:
+    """
+    Rekurzívne hľadá config.yml v priečinku a jeho podpriečinkoch.
+    Vracia cestu k najnovšiemu config.yml súboru (podľa modifikačného času).
+    
+    Args:
+        search_dir: Priečinok, v ktorom sa má hľadať
+        
+    Returns:
+        Path: Cesta k nájdenému config.yml
+        
+    Raises:
+        FileNotFoundError: Ak config.yml nie je nájdený
+    """
+    print(f"   🔍 Hľadám config.yml v: {search_dir}\n")
+    
+    config_files = list(search_dir.rglob("config.yml"))
+    
+    if not config_files:
+        print(f"   ❌ config.yml nebol nájdený v: {search_dir}")
+        raise FileNotFoundError(f"config.yml not found in {search_dir}")
+    
+    # Zoradi podľa modifikačného času (najnovší prvý)
+    config_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    
+    selected_config = config_files[0]
+    print(f"   ✅ Nájdený config.yml:")
+    print(f"      📄 {selected_config}")
+    print(f"      🕐 Modifikácia: {datetime.fromtimestamp(selected_config.stat().st_mtime)}\n")
+    
+    if len(config_files) > 1:
+        print(f"   ℹ️  Nájdených {len(config_files)} config.yml súborov, používam najnovší\n")
+    
+    return selected_config
 
 
 def run_process_data(images_path: Path, step1_dir: Path) -> bool:
@@ -71,7 +108,7 @@ def run_process_data(images_path: Path, step1_dir: Path) -> bool:
 
 def run_train_nerf(step1_dir: Path, step2_dir: Path) -> bool:
     """
-    STEP 2: Train NeRF model using ns-train
+    STEP 2: Train NeRF model using ns-train s normálami
     Číta výstup a hľadá "Training Finished", potom ukončí proces
     """
     print(f"   Step 2: Training NeRF model with ns-train (60 min)...")
@@ -82,12 +119,14 @@ def run_train_nerf(step1_dir: Path, step2_dir: Path) -> bool:
         env = os.environ.copy()
         env['PYTHONIOENCODING'] = 'utf-8'
         
+        # Tréňovanie s normálami - nerfacto s predict-normals
         cmd = (
             f"cd /d {NERFSTUDIO_PATH} && "
             f"conda activate nerfstudio && "
             f"ns-train nerfacto "
             f"--data {step1_dir} "
-            f"--output-dir {step2_dir}"
+            f"--output-dir {step2_dir} "
+            f"--pipeline.model.predict-normals True"
         )
         
         # Spusti proces s Popen aby bolo možné čítať výstup v reálnom čase
@@ -169,8 +208,21 @@ def run_export_pointcloud(config_path: Path, model_dir: Path) -> bool:
     STEP 3: Export trained model to PLY pointcloud using ns-export
     """
     print(f"   Step 3: Exporting to PLY...")
-    print(f"      🔧 Config: {config_path}")
-    print(f"      📁 Output: {model_dir}\n")
+    
+    # Skontroluj či config_path existuje, ak nie - hľadaj ho
+    if not config_path.exists():
+        print(f"   ⚠️  Config nebol nájdený na očakávanej ceste")
+        print(f"      Pôvodná: {config_path}\n")
+        try:
+            # Hľadaj config.yml v parent directories
+            search_dir = config_path.parent.parent  # Skúšaj step2 priečinok
+            config_path = find_config_yml(search_dir)
+        except FileNotFoundError:
+            print(f"   ❌ config.yml nebol nájdený ani v subpriečinkoch")
+            return False
+    else:
+        print(f"      🔧 Config: {config_path}")
+        print(f"      📁 Output: {model_dir}\n")
     
     try:
         env = os.environ.copy()
@@ -239,7 +291,6 @@ def run_nerfstudio_reconstruction(images_dir: str, output_model: str, status: st
         step2_dir.mkdir(parents=True, exist_ok=True)
         model_dir.mkdir(parents=True, exist_ok=True)
         
-        config_path = step2_dir / "nerfacto" / "config.yml"
         
         # ============================================
         # STEP 1: Process images
@@ -267,6 +318,15 @@ def run_nerfstudio_reconstruction(images_dir: str, output_model: str, status: st
         # ============================================
         if status == "training":
             print("Zacinam run_export_pointcloud")
+            # Hľadaj config.yml - ak neexistuje na štandardnej ceste, hľadaj rekurzívne
+            config_path = step2_dir / "nerfacto" / "config.yml"
+            if not config_path.exists():
+                try:
+                    config_path = find_config_yml(step2_dir)
+                except FileNotFoundError:
+                    print(f"❌ config.yml nebol nájdený v priečinku: {step2_dir}")
+                    return False
+
             if not run_export_pointcloud(config_path, model_dir):
                 return False
             update_project_status(project_id, "generated")
