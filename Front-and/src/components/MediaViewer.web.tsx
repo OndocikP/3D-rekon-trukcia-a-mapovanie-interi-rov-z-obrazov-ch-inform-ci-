@@ -23,6 +23,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
   const rendererRef = useRef<any>(null);
   const sceneRef = useRef<any>(null);
   const controlsRef = useRef<any>(null);
+  const cameraRef = useRef<any>(null);
   
   const [media, setMedia] = useState<apiClient.ProjectMedia | null>(null);
   const [displayMode, setDisplayMode] = useState<DisplayMode>('none');
@@ -244,7 +245,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       0.1,
       10000
     );
-    camera.position.set(0, 0, 50);
+    camera.position.set(50, 0, 0);  // Kamera v rovine XY pre rotáciu okolo Z osi
     
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
@@ -268,10 +269,13 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
     controls.autoRotate = true;
     controls.autoRotateSpeed = 1.5;
     controls.enableZoom = true;
+    controls.enableRotate = true;
+    controls.enablePan = true;
     
     sceneRef.current = scene;
     rendererRef.current = renderer;
     controlsRef.current = controls;
+    cameraRef.current = camera;
 
     const loadingDiv = document.createElement('div');
     loadingDiv.style.position = 'absolute';
@@ -283,11 +287,33 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
     loadingDiv.style.zIndex = '10';
     loadingDiv.innerHTML = '<div style="width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div><p>Načítavam 3D model...</p>';
     
+    // Info text o klávesoch
+    const infoDiv = document.createElement('div');
+    infoDiv.style.position = 'absolute';
+    infoDiv.style.bottom = '10px';
+    infoDiv.style.left = '10px';
+    infoDiv.style.color = 'rgba(255, 255, 255, 0.7)';
+    infoDiv.style.fontSize = '12px';
+    infoDiv.style.fontFamily = 'monospace';
+    infoDiv.style.zIndex = '10';
+    infoDiv.style.textAlign = 'left';
+    infoDiv.innerHTML = `
+      <div style="background: rgba(0, 0, 0, 0.5); padding: 8px 12px; border-radius: 4px; line-height: 1.6;">
+        <strong>Ovládanie:</strong><br/>
+        <strong>Q</strong> / <strong>E</strong> - Kamera vľavo/vpravo<br/>
+        <strong>↑↓</strong> - Kamera hore/dole<br/>
+        <strong>X</strong> / <strong>Z</strong> / <strong>Y</strong> - Rotovať osi<br/>
+        <strong>SPACE</strong> - Pause/Resume orbit<br/>
+        <strong>Myš</strong> - Drag = Otáčanie, Scroll = Zoom
+      </div>
+    `;
+    
     const styleSheet = document.createElement('style');
     styleSheet.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
     document.head.appendChild(styleSheet);
     
     container.appendChild(loadingDiv);
+    container.appendChild(infoDiv);
     container.style.position = 'relative';
 
     // PLY Parser (z pôvodného ThreeDViewer.web.tsx)
@@ -501,7 +527,6 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       newGeometry.boundingBox!.getCenter(center);
       
       newGeometry.translate(-center.x, -center.y, -center.z);
-      newGeometry.rotateX(Math.PI);
       
       const size = newGeometry.boundingBox!.getSize(new THREE.Vector3());
       const maxDim = Math.max(size.x, size.y, size.z);
@@ -509,12 +534,21 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       newGeometry.scale(scale, scale, scale);
       
       points.geometry = newGeometry;
-      scene.add(points);
+      
+      // Vytvoriť skupinu pre model aby Q/E mohli otáčať
+      const modelGroup = new THREE.Group();
+      modelGroup.add(points);
+      scene.add(modelGroup);
+      
+      // Uložiť referenciu na modelGroup pre keyboard handler
+      (window as any).modelGroup = modelGroup;
       
       controls.target.set(0, 0, 0);
       controls.autoRotateSpeed = 1.5;
       controls.dampingFactor = 0.02;
-      camera.position.z = maxDim * 1.5;
+      // Kamera na isometrickom uhle - dopredu a hore
+      const camDist = maxDim * 1.2;
+      camera.position.set(camDist * 0.7, camDist * 0.7, camDist * 0.7);
       controls.update();
       loadingDiv.style.display = 'none';
       
@@ -537,9 +571,84 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       renderer.setSize(w, h);
     };
     
+    // Keyboard controls: Q/E pre rotáciu vľavo/vpravo, X/Z/Y pre otáčanie osí, Space para pause/resume
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      
+      if (key === 'x' || key === 'z' || key === 'y') {
+        // Otáčať OS (okolo ktorej sa pohybuje kamera)
+        const target = controls.target;
+        const delta = camera.position.clone().sub(target);
+        const rotAmount = 0.1;  // 0.1 radiáns
+        
+        if (key === 'x') {
+          // Rotovať okolo X osi
+          const axis = new THREE.Vector3(1, 0, 0);
+          delta.applyAxisAngle(axis, rotAmount);
+        } else if (key === 'z') {
+          // Rotovať okolo Z osi
+          const axis = new THREE.Vector3(0, 0, 1);
+          delta.applyAxisAngle(axis, rotAmount);
+        } else if (key === 'y') {
+          // Rotovať okolo Y osi
+          const axis = new THREE.Vector3(0, 1, 0);
+          delta.applyAxisAngle(axis, rotAmount);
+        }
+        
+        camera.position.copy(target.clone().add(delta));
+        controls.update();
+      } else if (key === 'q' || key === 'e') {
+        // Rotovať KAMERU doľava/doprava okolo modelu
+        const target = controls.target;
+        const delta = camera.position.clone().sub(target);
+        let phi = Math.atan2(delta.z, delta.x);  // Horizontálny uhol
+        const theta = Math.acos(delta.y / delta.length());  // Vertikálny uhol
+        const radius = delta.length();
+        
+        const rotSpeed = 0.05;
+        if (key === 'q') phi += rotSpeed;      // Q = kamera vľavo
+        if (key === 'e') phi -= rotSpeed;      // E = kamera vpravo
+        
+        // Vypočítaj novú pozíciu kamery
+        camera.position.x = target.x + radius * Math.sin(theta) * Math.cos(phi);
+        camera.position.y = target.y + radius * Math.cos(theta);
+        camera.position.z = target.z + radius * Math.sin(theta) * Math.sin(phi);
+        
+        controls.update();
+      } else if (key === 'arrowup' || key === 'arrowdown' || key === 'arrowleft' || key === 'arrowright') {
+        // Rotovať KAMERU hore/dole s šípkami
+        const target = controls.target;
+        const delta = camera.position.clone().sub(target);
+        let phi = Math.atan2(delta.z, delta.x);  // Horizontálny uhol
+        let theta = Math.acos(delta.y / delta.length());  // Vertikálny uhol
+        const radius = delta.length();
+        
+        const rotSpeed = 0.05;
+        if (key === 'arrowup') theta -= rotSpeed;      // Kamera hore
+        if (key === 'arrowdown') theta += rotSpeed;    // Kamera dole
+        
+        // Ogranič vertikálny uhol aby kamera nebola pod zemou
+        theta = Math.max(0.1, Math.min(Math.PI - 0.1, theta));
+        
+        // Vypočítaj novú pozíciu kamery
+        camera.position.x = target.x + radius * Math.sin(theta) * Math.cos(phi);
+        camera.position.y = target.y + radius * Math.cos(theta);
+        camera.position.z = target.z + radius * Math.sin(theta) * Math.sin(phi);
+        
+        controls.update();
+      } else if (e.code === 'Space') {
+        // Pause/Resume orbit
+        e.preventDefault();
+        controls.autoRotate = !controls.autoRotate;
+        console.log('[3D VIEWER] AutoRotate:', controls.autoRotate ? 'ON' : 'OFF');
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('resize', handleResize);
     
     return () => {
+      window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('resize', handleResize);
       renderer.dispose();
     };

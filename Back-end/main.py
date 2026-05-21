@@ -603,30 +603,31 @@ async def get_3d_model_content(project_id: str):
         print(f"❌ Error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.get("/api/projects/{project_id}/3d-model/download-all")
-async def download_3d_model_all(project_id: str):
+@app.get("/api/projects/{user_id}/{project_id}/3d-model/download-all")
+async def download_3d_model_all(user_id: str, project_id: str):
     """Stiahni všetky súbory z 3Dmodel priečinka ako ZIP"""
     try:
         print(f"\n📦 DOWNLOAD 3D MODEL ZIP ENDPOINT")
+        print(f"   user_id: {user_id}")
         print(f"   project_id: {project_id}")
         
-        # Nájsť 3Dmodel priečinok
+        # Načítaj projekt meno z DB
+        project_name = project_id
+        try:
+            project_response = supabase.table('projects').select('name').eq('id', project_id).single().execute()
+            if project_response.data and project_response.data.get('name'):
+                project_name = project_response.data['name']
+                print(f"✅ Project name z DB: {project_name}")
+        except Exception as db_error:
+            print(f"⚠️  Nepodarilo sa načítať meno projektu z DB, používam ID: {db_error}")
+        
+        # Skontroluj cestu: PROJECTS_PATH/user_id/project_id/3Dmodel
         projects_path = os.getenv('PROJECTS_PATH', Path(__file__).parent / 'routers' / 'projects')
-        projects_root = Path(projects_path)
+        model_dir = Path(projects_path) / user_id / project_id / '3Dmodel'
         
-        model_dir = None
-        
-        if projects_root.exists():
-            for user_dir in projects_root.iterdir():
-                if user_dir.is_dir():
-                    potential_model_dir = user_dir / project_id / '3Dmodel'
-                    if potential_model_dir.exists():
-                        model_dir = potential_model_dir
-                        break
-        
-        if not model_dir or not model_dir.exists():
-            print(f"❌ 3Dmodel priečinok not found for project_id: {project_id}")
-            raise HTTPException(status_code=404, detail="3Dmodel folder not found")
+        if not model_dir.exists():
+            print(f"❌ 3Dmodel priečinok not found: {model_dir}")
+            raise HTTPException(status_code=404, detail=f"3Dmodel folder not found for user {user_id}, project {project_id}")
         
         # Skontroluj či priečinok obsahuje súbory
         files_list = list(model_dir.glob('*'))
@@ -651,11 +652,30 @@ async def download_3d_model_all(project_id: str):
         zip_size = zip_buffer.getbuffer().nbytes
         print(f"✅ ZIP vytvorený ({zip_size} bytes)")
         
+        # Vytvor bezpečný názov súboru bez medzier a špeciálnych znakov
+        safe_filename = (
+            project_name
+            .replace(' ', '_')  # Medzery -> podčiarky
+            .replace('/', '_')  # Lomítka -> podčiarky
+            .replace('\\', '_')  # Spätné lomítka -> podčiarky
+            .replace(':', '_')  # Dvojbodky -> podčiarky
+            .replace('*', '_')  # Hviezdičky -> podčiarky
+            .replace('?', '_')  # Otazníky -> podčiarky
+            .replace('"', '_')  # Úvodzovky -> podčiarky
+            .replace('<', '_')  # Menšie -> podčiarky
+            .replace('>', '_')  # Väčšie -> podčiarky
+            .replace('|', '_')  # Potrubie -> podčiarky
+            [:50]  # Max 50 znakov
+        )
+        safe_filename = f"{safe_filename}_3dmodel.zip"
+        
+        print(f"📁 ZIP názov: {safe_filename}")
+        
         # Vráť ZIP ako download
         return Response(
             content=zip_buffer.getvalue(),
             media_type="application/zip",
-            headers={"Content-Disposition": f"attachment; filename=project_{project_id}_3dmodel.zip"}
+            headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
         )
     
     except HTTPException:

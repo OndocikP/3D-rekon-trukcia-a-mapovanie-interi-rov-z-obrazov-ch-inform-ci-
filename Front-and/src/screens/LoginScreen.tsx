@@ -167,7 +167,7 @@ export default function LoginScreen() {
             { 
               backgroundColor: colors.inputBackground,
               borderColor: colors.inputBorder,
-              color: colors.textPrimary,
+              color: colors.textTertiary,
             }
           ]}
           value={username}
@@ -192,7 +192,7 @@ export default function LoginScreen() {
             style={[
               styles.passwordInput,
               { 
-                color: colors.textPrimary,
+                color: colors.textTertiary,
               }
             ]}
             value={password}
@@ -230,7 +230,7 @@ export default function LoginScreen() {
         <View style={styles.linksContainer}>
           <Pressable onPress={() => setForgotVisible(true)} disabled={loading}>
             <Text
-              style={[styles.forgot, { color: colors.textSecondary }]}
+              style={[styles.forgot, { color: colors.primary }]}
             >
               Forgot password?
             </Text>
@@ -268,7 +268,7 @@ export default function LoginScreen() {
                       { 
                         backgroundColor: colors.inputBackground,
                         borderColor: colors.inputBorder,
-                        color: colors.textPrimary,
+                        color: colors.textTertiary,
                       }
                     ]}
                     value={email}
@@ -309,7 +309,7 @@ export default function LoginScreen() {
                       { 
                         backgroundColor: colors.inputBackground,
                         borderColor: colors.inputBorder,
-                        color: colors.textPrimary,
+                        color: colors.textTertiary,
                       }
                     ]}
                     value={resetCode}
@@ -334,7 +334,7 @@ export default function LoginScreen() {
                       style={[
                         styles.passwordInput,
                         { 
-                          color: colors.textPrimary,
+                          color: colors.textTertiary,
                         }
                       ]}
                       value={newPassword}
@@ -369,7 +369,7 @@ export default function LoginScreen() {
                       style={[
                         styles.passwordInput,
                         { 
-                          color: colors.textPrimary,
+                          color: colors.textTertiary,
                         }
                       ]}
                       value={confirmPassword}

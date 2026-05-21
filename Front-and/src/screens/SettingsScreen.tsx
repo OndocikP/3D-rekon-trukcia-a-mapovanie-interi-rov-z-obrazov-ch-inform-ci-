@@ -150,25 +150,11 @@ export default function SettingsScreen() {
             <Pressable
               style={[
                 styles.actionButton,
-                {
-                  backgroundColor: colors.primary + '20',
-                  borderColor: colors.primary,
-                },
-              ]}
-              onPress={() => setEditingEmail(!editingEmail)}
-            >
-              <Text style={[styles.actionButtonText, { color: colors.primary }]}>
-                {editingEmail ? 'Done' : 'Change Email'}
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={[
-                styles.actionButton,
                 styles.dangerButton,
                 {
                   backgroundColor: colors.warning + '30',
                   borderColor: colors.warning,
+                  flex: 1,
                 },
               ]}
               onPress={() => {
@@ -182,6 +168,8 @@ export default function SettingsScreen() {
                 Delete Account
               </Text>
             </Pressable>
+            <View style={{ flex: 1 }} />
+            <View style={{ flex: 1 }} />
           </View>
         </View>
       </View>
@@ -191,6 +179,7 @@ export default function SettingsScreen() {
           title="Main"
           variant="secondary"
           onPress={() => router.push('/main')}
+          style={{ minHeight: 58, paddingHorizontal: 19 }}
         />
       </View>
     </LinearGradient>
@@ -361,7 +350,6 @@ const styles = StyleSheet.create({
   },
 
   actionButton: {
-    flex: 1,
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: 14,

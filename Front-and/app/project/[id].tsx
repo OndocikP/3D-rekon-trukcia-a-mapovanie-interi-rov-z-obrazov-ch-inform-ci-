@@ -15,7 +15,7 @@ import { API_URL } from '../../src/utils/config';
 
 export default function ProjectDetailScreen() {
   const { colors } = useColors();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { id } = useLocalSearchParams<{ id?: string }>();
 
   const [media, setMedia] = useState<apiClient.ProjectMedia | null>(null);
@@ -26,7 +26,7 @@ export default function ProjectDetailScreen() {
 
   useEffect(() => {
     loadProject();
-  }, [id, token]);
+  }, [id, token, user]);
 
   const loadProject = async () => {
     if (!id || !token) {
@@ -91,42 +91,76 @@ export default function ProjectDetailScreen() {
   const isWeb = Platform.OS === 'web';
 
   const handleDownload = async () => {
-    if (!id || !token) {
-      Alert.alert('Chyba', 'Project ID alebo token chýba');
+    if (!id || !token || !user?.id) {
+      Alert.alert('Chyba', 'Project ID, user ID alebo token chýba');
       return;
     }
 
     try {
       setDownloading(true);
-      console.log(`📦 Začínam download 3D modelu pre projekt: ${id}`);
+      console.log(`📦 Začínam download 3D modelu pre projekt: ${id}, user: ${user.id}`);
       
-      const downloadUrl = `${API_URL}/projects/${id}/3d-model/download-all`;
+      const downloadUrl = `${API_URL}/projects/${user.id}/${id}/3d-model/download-all`;
       
       console.log(`🌐 URL: ${downloadUrl}`);
-      
-      // Stiahni ZIP
-      const fileUri = `${FileSystem.documentDirectory}project_${id}_3dmodel.zip`;
-      
-      const downloadResult = await FileSystem.downloadAsync(
-        downloadUrl,
-        fileUri
-      );
-      
-      if (downloadResult.status === 200) {
-        console.log(`✅ ZIP stiahnutý: ${fileUri}`);
+
+      // Vytvor bezpečný názov súboru bez medzier a špeciálnych znakov
+      const safeProjectName = projectName
+        .replace(/\s+/g, '_')  // Nahraď medzery podčiarkami
+        .replace(/[^\w\-]/g, '') // Odstráň špeciálne znaky
+        .substring(0, 50); // Limit na 50 znakov
+
+      const zipFileName = `${safeProjectName}_3Dmodel.zip`;
+
+      if (isWeb) {
+        // WEB DOWNLOAD: Fetch ZIP a trigger browser download
+        console.log('🌐 Web download...');
+        const response = await fetch(downloadUrl);
         
-        // Share/Save ZIP
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(fileUri, {
-            mimeType: 'application/zip',
-            dialogTitle: 'Uložiť 3D model',
-          });
-          console.log(`✅ ZIP zdieľaný`);
-        } else {
-          Alert.alert('Úspech', `3D model stiahnutý: ${fileUri}`);
+        if (!response.ok) {
+          throw new Error(`Download failed with status ${response.status}`);
         }
+
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        
+        // Vytvor virtuálny <a> element a simuluj klik
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = zipFileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(blobUrl);
+        
+        console.log(`✅ ZIP stiahnutý v prehliadači: ${zipFileName}`);
+        Alert.alert('Úspech', 'ZIP bol stiahnutý');
       } else {
-        throw new Error(`Download failed with status ${downloadResult.status}`);
+        // MOBILE DOWNLOAD: Použi expo-file-system
+        console.log('📱 Mobile download...');
+        const fileUri = `${FileSystem.documentDirectory}${zipFileName}`;
+        
+        const downloadResult = await FileSystem.downloadAsync(
+          downloadUrl,
+          fileUri
+        );
+        
+        if (downloadResult.status === 200) {
+          console.log(`✅ ZIP stiahnutý: ${fileUri}`);
+          
+          // Share/Save ZIP
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(fileUri, {
+              mimeType: 'application/zip',
+              dialogTitle: 'Uložiť 3D model',
+            });
+            console.log(`✅ ZIP zdieľaný`);
+          } else {
+            Alert.alert('Úspech', `3D model stiahnutý: ${fileUri}`);
+          }
+        } else {
+          throw new Error(`Download failed with status ${downloadResult.status}`);
+        }
       }
     } catch (error) {
       console.error('❌ Download error:', error);
@@ -247,7 +281,7 @@ export default function ProjectDetailScreen() {
                     params: { name: projectName },
                   })
                 }
-                style={{ flex: 1, minWidth: 90 }}
+                style={{ flex: 0.5, minWidth: 45 }}
               />
               <AppButton
                 icon="download"
@@ -255,13 +289,13 @@ export default function ProjectDetailScreen() {
                 variant="secondary"
                 disabled={downloading || !media?.has_media}
                 onPress={handleDownload}
-                style={{ flex: 1.2, minWidth: 130 }}
+                style={{ flex: 0.6, minWidth: 65 }}
               />
               <AppButton
                 icon="home"
                 title="Main"
                 onPress={() => router.replace('/main')}
-                style={{ flex: 1, minWidth: 90 }}
+                style={{ flex: 0.5, minWidth: 45 }}
               />
             </View>
 
@@ -365,6 +399,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     flexWrap: 'wrap',
     width: '100%',
-    maxWidth: 800,
+    maxWidth: 400,
   },
 });
