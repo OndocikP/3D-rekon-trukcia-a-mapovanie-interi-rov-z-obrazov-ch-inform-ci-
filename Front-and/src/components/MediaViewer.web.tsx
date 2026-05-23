@@ -301,7 +301,6 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       <div style="background: rgba(0, 0, 0, 0.5); padding: 8px 12px; border-radius: 4px; line-height: 1.6;">
         <strong>Ovládanie:</strong><br/>
         <strong>Q</strong> / <strong>E</strong> - Kamera vľavo/vpravo<br/>
-        <strong>↑↓</strong> - Kamera hore/dole<br/>
         <strong>X</strong> / <strong>Z</strong> / <strong>Y</strong> - Rotovať osi<br/>
         <strong>SPACE</strong> - Pause/Resume orbit<br/>
         <strong>Myš</strong> - Drag = Otáčanie, Scroll = Zoom
@@ -608,27 +607,6 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
         const rotSpeed = 0.05;
         if (key === 'q') phi += rotSpeed;      // Q = kamera vľavo
         if (key === 'e') phi -= rotSpeed;      // E = kamera vpravo
-        
-        // Vypočítaj novú pozíciu kamery
-        camera.position.x = target.x + radius * Math.sin(theta) * Math.cos(phi);
-        camera.position.y = target.y + radius * Math.cos(theta);
-        camera.position.z = target.z + radius * Math.sin(theta) * Math.sin(phi);
-        
-        controls.update();
-      } else if (key === 'arrowup' || key === 'arrowdown' || key === 'arrowleft' || key === 'arrowright') {
-        // Rotovať KAMERU hore/dole s šípkami
-        const target = controls.target;
-        const delta = camera.position.clone().sub(target);
-        let phi = Math.atan2(delta.z, delta.x);  // Horizontálny uhol
-        let theta = Math.acos(delta.y / delta.length());  // Vertikálny uhol
-        const radius = delta.length();
-        
-        const rotSpeed = 0.05;
-        if (key === 'arrowup') theta -= rotSpeed;      // Kamera hore
-        if (key === 'arrowdown') theta += rotSpeed;    // Kamera dole
-        
-        // Ogranič vertikálny uhol aby kamera nebola pod zemou
-        theta = Math.max(0.1, Math.min(Math.PI - 0.1, theta));
         
         // Vypočítaj novú pozíciu kamery
         camera.position.x = target.x + radius * Math.sin(theta) * Math.cos(phi);

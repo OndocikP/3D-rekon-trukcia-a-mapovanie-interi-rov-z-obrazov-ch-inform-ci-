@@ -426,6 +426,54 @@ async def get_project_info(project_id: str):
         print(f"❌ Error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.delete("/api/projects/{project_id}")
+async def delete_project(project_id: str, authorization: Optional[str] = Header(None)):
+    """Zmaž projekt z Supabase a zmaž priečinkkovú štruktúru"""
+    try:
+        print(f"\n🗑️  DELETE PROJECT ENDPOINT")
+        print(f"   project_id: {project_id}")
+        
+        if not authorization:
+            print("❌ No token provided")
+            raise HTTPException(status_code=401, detail="No token provided")
+        
+        # Skontroluj či projekt existuje
+        response = supabase.table('projects').select('id, owner_id').eq('id', project_id).execute()
+        
+        if not response.data or len(response.data) == 0:
+            print(f"❌ Project not found: {project_id}")
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        project = response.data[0]
+        owner_id = project.get('owner_id')
+        
+        print(f"✅ Project found, owner_id: {owner_id}")
+        
+        # Zmaž projekt z Supabase
+        print("📡 Deleting from Supabase...")
+        delete_response = supabase.table('projects').delete().eq('id', project_id).execute()
+        print(f"✅ Supabase delete response: {delete_response}")
+        
+        # Zmaž priečinkkovú štruktúru z disku
+        projects_path = os.getenv('PROJECTS_PATH', Path(__file__).parent / 'routers' / 'projects')
+        project_dir = Path(projects_path) / owner_id / project_id
+        
+        if project_dir.exists():
+            print(f"📁 Deleting directory: {project_dir}")
+            import shutil
+            shutil.rmtree(project_dir)
+            print(f"✅ Directory deleted successfully")
+        
+        return {
+            "success": True,
+            "message": f"Project {project_id} deleted successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
 # ============================================
 # IMAGE UPLOAD
 # ============================================
