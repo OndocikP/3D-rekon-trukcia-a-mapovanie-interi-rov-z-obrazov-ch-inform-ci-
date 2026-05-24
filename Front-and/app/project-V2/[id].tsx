@@ -7,13 +7,17 @@ import { useLocalSearchParams, router } from 'expo-router';
 
 import { layout } from '../../src/theme/layout';
 import AppButton from '../../src/components/AppButton';
-import { MediaViewer } from '../../src/components/MediaViewer';
+import { NerfstudioViewer } from '../../src/components/NerfstudioViewer';
 import { useColors } from '../../src/theme/ColorsProvider';
 import { useAuth } from '../../src/context/AuthContext';
 import * as apiClient from '../../src/api/client';
 import { API_URL } from '../../src/utils/config';
 
-export default function ProjectDetailScreen() {
+/**
+ * PROJECT V2 VIEWER - Enhanced version with additional features
+ * This is the new viewer experience with potential improvements
+ */
+export default function ProjectDetailScreenV2() {
   const { colors } = useColors();
   const { token, user } = useAuth();
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -23,6 +27,29 @@ export default function ProjectDetailScreen() {
   const [project, setProject] = useState<apiClient.Project | null>(null);
   const [loadingProject, setLoadingProject] = useState(true);
   const [downloading, setDownloading] = useState(false);
+
+  const startViewerInBackground = async (projectId: string, userToken: string) => {
+    // Spusti viewer na backendu - viewer sa spusti na porte 7007
+    try {
+      const response = await fetch(`${API_URL}/projects/${projectId}/viewer/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${userToken}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[PROJECT V2] ✅ Viewer started:', data);
+      } else {
+        console.warn('[PROJECT V2] ⚠️ Viewer start failed:', response.status);
+      }
+    } catch (error) {
+      console.warn('[PROJECT V2] ⚠️ Error starting viewer:', error);
+      // Bez erroru - viewer start je optional
+    }
+  };
 
   useEffect(() => {
     loadProject();
@@ -41,14 +68,20 @@ export default function ProjectDetailScreen() {
       const projectResponse = await apiClient.getProjectInfo(id);
       if (projectResponse.data) {
         setProject(projectResponse.data);
-        console.log('[PROJECT] Project loaded:', projectResponse.data);
+        console.log('[PROJECT V2] Project loaded:', projectResponse.data);
       } else {
-        console.warn('[PROJECT] Failed to load project:', projectResponse.error);
+        console.warn('[PROJECT V2] Failed to load project:', projectResponse.error);
         Alert.alert('Upozornenie', 'Nepodarilo sa načítať info o projekte');
       }
       
       // Načítaj médiá (videá a modely)
       await loadMedia(id, token);
+      
+      // Spusti viewer v pozadí - backend projekt iniciuje viewer na porte 7007
+      if (projectResponse.data?.status === 'Generated' || projectResponse.data?.status === 'generated') {
+        console.log('[PROJECT V2] Spúšťam viewer na backendu...');
+        startViewerInBackground(id, token);
+      }
     } catch (error) {
       console.error('Error loading project:', error);
       Alert.alert('Chyba', error instanceof Error ? error.message : 'Neznáma chyba');
@@ -60,23 +93,23 @@ export default function ProjectDetailScreen() {
   const loadMedia = async (projectId: string, userToken: string) => {
     try {
       setLoadingMedia(true);
-      console.log(`[PROJECT] Loading media for project: ${projectId}`);
+      console.log(`[PROJECT V2] Loading media for project: ${projectId}`);
       const response = await apiClient.getProjectMedia(projectId);
-      console.log('[PROJECT] Media check response:', response);
+      console.log('[PROJECT V2] Media check response:', response);
       if (response.data) {
-        console.log(`[PROJECT] Media info:`, response.data);
+        console.log(`[PROJECT V2] Media info:`, response.data);
         setMedia(response.data);
         if (response.data.has_media) {
-          console.log(`[PROJECT] ✅ Media available`);
+          console.log(`[PROJECT V2] ✅ Media available`);
         } else {
-          console.log(`[PROJECT] ℹ️ No media for this project yet`);
+          console.log(`[PROJECT V2] ℹ️ No media for this project yet`);
         }
       } else {
-        console.warn('[PROJECT] No data in response:', response.error);
+        console.warn('[PROJECT V2] No data in response:', response.error);
         setMedia({ videos: [], models: [], has_media: false, priority: null });
       }
     } catch (error) {
-      console.error('[PROJECT] Error loading media:', error);
+      console.error('[PROJECT V2] Error loading media:', error);
       setMedia({ videos: [], models: [], has_media: false, priority: null });
     } finally {
       setLoadingMedia(false);
@@ -187,13 +220,14 @@ export default function ProjectDetailScreen() {
         <ScrollView contentContainerStyle={styles.scroll}>
           <View style={styles.content}>
 
-            {/* HEADER */}
+            {/* HEADER - V2 VIEWER */}
             <View style={styles.headerRow}>
               <Text style={[styles.logoIcon, { color: colors.textPrimary }]}>⌁</Text>
               <Text style={[styles.title, { color: colors.textPrimary }]}>{projectName}</Text>
+              <Text style={[styles.versionBadge, { color: colors.accent }]}> V2</Text>
             </View>
 
-            {/* MEDIA VIEWER (VIDEOS + 3D MODELS) */}
+            {/* MEDIA VIEWER - NERFSTUDIO V2 */}
             {loadingMedia ? (
               <View
                 style={[
@@ -212,7 +246,7 @@ export default function ProjectDetailScreen() {
                   imageStyle,
                 ]}
               >
-                <MediaViewer
+                <NerfstudioViewer
                   projectId={id || ''}
                   token={token || ''}
                   width={imageStyle.width}
@@ -269,20 +303,8 @@ export default function ProjectDetailScreen() {
               ) : null}
             </View>
 
-            {/* BUTTONS */}
+            {/* BUTTONS - V2 OPTIONS */}
             <View style={styles.buttonRow}>
-              <AppButton
-                icon="edit"
-                title="Edit"
-                variant="secondary"
-                onPress={() =>
-                  router.push({
-                    pathname: `/project/${id}/edit`,
-                    params: { name: projectName },
-                  })
-                }
-                style={{ flex: 0.5, minWidth: 45 }}
-              />
               <AppButton
                 icon="download"
                 title="Download"
@@ -292,12 +314,12 @@ export default function ProjectDetailScreen() {
                 style={{ flex: 0.6, minWidth: 65 }}
               />
               <AppButton
-                icon="eye"
-                title="Viewer V2"
+                icon="arrow-back"
+                title="Back to V1"
                 variant="secondary"
                 onPress={() =>
                   router.push({
-                    pathname: `/project-V2/${id}`,
+                    pathname: `/project/${id}`,
                   })
                 }
                 style={{ flex: 0.7, minWidth: 75 }}
@@ -369,6 +391,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: '700',
+  },
+
+  versionBadge: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
   },
 
   imageWrapper: {

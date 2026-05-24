@@ -24,6 +24,12 @@ load_dotenv()
 
 # Nerfstudio config
 NERFSTUDIO_PATH = os.getenv("NERFSTUDIO_PATH", "C:\\Users\\papo1\\nerfstudio\\nerfstudio")
+NERFSTUDIO_VIEWER_PORT = int(os.getenv("NERFSTUDIO_VIEWER_PORT", "7007"))
+NERFSTUDIO_WEBSOCKET_PORT = int(os.getenv("NERFSTUDIO_WEBSOCKET_PORT", "7008"))
+
+# Globálne premenné na sledovanie vieweru
+_viewer_process = None
+_current_project_id = None
 
 
 def find_config_yml(search_dir: Path) -> Path:
@@ -256,6 +262,127 @@ def run_export_pointcloud(config_path: Path, model_dir: Path) -> bool:
         return False
     except Exception as e:
         print(f"   ❌ ns-export error: {e}")
+        return False
+
+
+def kill_viewer() -> bool:
+    """
+    Zastaví bežiaci Nerfstudio viewer proces
+    
+    Returns:
+        bool: True ak bol viewer zastavený
+    """
+    global _viewer_process, _current_project_id
+    
+    if _viewer_process is None:
+        return False
+    
+    try:
+        print(f"\n   🛑 Zastavujem bežiaci viewer (project: {_current_project_id})...")
+        
+        # Terminuj proces - compatible s Windows/Linux/Mac
+        _viewer_process.terminate()
+        
+        # Počkaj aby sa proces ukončil
+        try:
+            _viewer_process.wait(timeout=3)
+            print(f"   ✅ Viewer zastavený")
+        except subprocess.TimeoutExpired:
+            print(f"   ⚠️  Viewer sa neukončil, force kill...")
+            _viewer_process.kill()
+            _viewer_process.wait()
+            print(f"   ✅ Viewer kilnut")
+        
+        _viewer_process = None
+        _current_project_id = None
+        return True
+        
+    except Exception as e:
+        print(f"   ❌ Chyba pri zastavení vieweru: {e}")
+        _viewer_process = None
+        _current_project_id = None
+        return False
+
+
+def start_viewer(project_id: str, config_path: Path) -> bool:
+    """
+    Spustí Nerfstudio viewer v pozadí
+    - Zastaví starý viewer ak beží pre iný projekt
+    - Spustí nový viewer pre projekt
+    
+    Args:
+        project_id: ID projektu
+        config_path: Cesta k config.yml
+        
+    Returns:
+        bool: True ak sa viewer spustil úspešne
+    """
+    global _viewer_process, _current_project_id
+    
+    print(f"\n" + "="*70)
+    print(f"🎬 SPÚŠŤAM NERFSTUDIO VIEWER PRE PROJEKT: {project_id}")
+    print(f"="*70)
+    
+    try:
+        # Ak je viewer spustený pre iný projekt, zastaň ho
+        if _viewer_process is not None and _current_project_id != project_id:
+            print(f"\n   ⚠️  Viewer je spustený pre projekt: {_current_project_id}")
+            print(f"   🔄 Zastavujem a spúšťam nový...\n")
+            kill_viewer()
+        
+        # Skontroluj config
+        config = Path(config_path)
+        if not config.exists() or config.is_dir():
+            print(f"   ⚠️  Config nebol nájdený na: {config_path}")
+            print(f"   🔍 Hľadám config.yml...")
+            try:
+                config = find_config_yml(config if config.is_dir() else config.parent)
+            except FileNotFoundError:
+                print(f"   ❌ config.yml nebol nájdený")
+                return False
+        
+        print(f"   📄 Config: {config}")
+        print(f"   🌐 HTTP Port: {NERFSTUDIO_VIEWER_PORT}")
+        print(f"   📡 WebSocket Port: {NERFSTUDIO_WEBSOCKET_PORT}\n")
+        
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+        
+        cmd = (
+            f"cd /d {NERFSTUDIO_PATH} && "
+            f"conda activate nerfstudio && "
+            f"ns-viewer --load-config={config} "
+            f"--viewer.http-port {NERFSTUDIO_VIEWER_PORT} "
+            f"--viewer.websocket-port {NERFSTUDIO_WEBSOCKET_PORT}"
+        )
+        
+        # Spustí ako daemon proces v novu process group (Windows)
+        if sys.platform == 'win32':
+            _viewer_process = subprocess.Popen(
+                ['cmd', '/c', cmd],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=env,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+            )
+        else:
+            _viewer_process = subprocess.Popen(
+                cmd,
+                shell=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=env,
+                start_new_session=True
+            )
+        
+        _current_project_id = project_id
+        print(f"   ✅ Viewer spustený!")
+        print(f"   🌍 Dostupný na: http://localhost:{NERFSTUDIO_VIEWER_PORT}")
+        print(f"="*70 + "\n")
+        return True
+        
+    except Exception as e:
+        print(f"   ❌ Chyba: {e}\n")
         return False
 
 

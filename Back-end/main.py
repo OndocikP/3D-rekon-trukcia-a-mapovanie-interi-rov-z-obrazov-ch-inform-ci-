@@ -24,6 +24,13 @@ from password_reset import (
     reset_password_with_code
 )
 
+# Nerfstudio viewer import
+from nerfstudio_handler import (
+    start_viewer,
+    kill_viewer,
+    find_config_yml
+)
+
 # Načítaj .env
 load_dotenv()
 
@@ -1001,6 +1008,119 @@ async def generate_all_3d_models(
     
     except HTTPException:
         raise
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================
+# NERFSTUDIO VIEWER
+# ============================================
+
+@app.post("/api/projects/{project_id}/viewer/start")
+async def start_nerfstudio_viewer(
+    project_id: str,
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Spustenie Nerfstudio vieweru pre projekt
+    - Zastaví viewer ak beží pre iný projekt
+    - Spustí nový viewer pre tento projekt
+    
+    Frontend volá tento endpoint z http://localhost:8085/project-V2/{id}
+    """
+    try:
+        if not authorization:
+            raise HTTPException(status_code=401, detail="No token provided")
+        
+        print(f"\n📺 VIEWER START ENDPOINT")
+        print(f"   project_id: {project_id}")
+        
+        # Nájdi projekt a jeho config
+        projects_path = os.getenv('PROJECTS_PATH', Path(__file__).parent / 'projects')
+        projects_root = Path(projects_path)
+        
+        config_path = None
+        project_found = False
+        
+        if projects_root.exists():
+            for user_dir in projects_root.iterdir():
+                if user_dir.is_dir():
+                    project_dir = user_dir / project_id
+                    if project_dir.exists():
+                        project_found = True
+                        
+                        # Hľadaj config.yml v processed/step2/nerfacto/
+                        processed_dir = project_dir / "processed" / "step2" / "nerfacto"
+                        if processed_dir.exists():
+                            config_file = processed_dir / "config.yml"
+                            if config_file.exists():
+                                config_path = config_file
+                                break
+                        
+                        # Ak nie, hľadaj rekurzívne
+                        if not config_path:
+                            try:
+                                step2_dir = project_dir / "processed" / "step2"
+                                if step2_dir.exists():
+                                    config_path = find_config_yml(step2_dir)
+                                    break
+                            except:
+                                pass
+        
+        if not project_found:
+            print(f"❌ Projekt nenájdený: {project_id}")
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        if not config_path:
+            print(f"❌ Config.yml nenájdený pre projekt: {project_id}")
+            raise HTTPException(status_code=400, detail="Config.yml not found - model may not be trained yet")
+        
+        print(f"✅ Config nájdený: {config_path}")
+        
+        # Spusti viewer
+        viewer_started = start_viewer(project_id, config_path)
+        
+        if viewer_started:
+            return {
+                "success": True,
+                "message": "Viewer started successfully",
+                "project_id": project_id,
+                "config_path": str(config_path),
+                "viewer_url": f"http://localhost:7007"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to start viewer")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/projects/{project_id}/viewer/stop")
+async def stop_nerfstudio_viewer(
+    project_id: str,
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Zastavenie Nerfstudio vieweru
+    """
+    try:
+        if not authorization:
+            raise HTTPException(status_code=401, detail="No token provided")
+        
+        print(f"\n📺 VIEWER STOP ENDPOINT")
+        print(f"   project_id: {project_id}")
+        
+        viewer_stopped = kill_viewer()
+        
+        return {
+            "success": viewer_stopped,
+            "message": "Viewer stopped" if viewer_stopped else "No viewer running"
+        }
+    
     except Exception as e:
         print(f"❌ Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
