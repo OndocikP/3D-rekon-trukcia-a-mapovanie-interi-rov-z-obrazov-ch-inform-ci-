@@ -4,6 +4,7 @@ Nájdi najstarší projekt so statusom 'pending' v Supabase
 """
 
 import os
+import time
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -26,6 +27,10 @@ PROJECTS_PATH = os.getenv("PROJECTS_PATH", "./projects")
 YOLO_MODEL = os.getenv("YOLO_MODEL", "yolov8l.pt")
 YOLO_CONFIDENCE = float(os.getenv("YOLO_CONFIDENCE", "0.7"))
 YOLO_DEVICE = os.getenv("YOLO_DEVICE", "0")
+
+# Worker config
+MAIN_GENERATOR_REPEAT = os.getenv("MAIN_GENERATOR_REPEAT", "false").lower() == "true"
+WORKER_SLEEP_SECONDS = int(os.getenv("WORKER_SLEEP_SECONDS", "60"))
 
 
 def format_detected_objects(objects_dict: dict, min_count: int = 2) -> str:
@@ -260,9 +265,27 @@ def main():
     print("\n" + "="*70)
     print("Supabase Query - Najstarší projekt so statusom 'pending'")
     print("="*70)
-    print(f"\n📁 PROJECTS_PATH: {PROJECTS_PATH}\n")
+    print(f"\n📁 PROJECTS_PATH: {PROJECTS_PATH}")
+    print(f"🔄 Repeat Mode: {'ENABLED' if MAIN_GENERATOR_REPEAT else 'DISABLED'}")
+    print(f"⏱️  Sleep Interval: {WORKER_SLEEP_SECONDS}s\n")
     
-    spracuj_projekt()
+    while True:
+        try:
+            spracuj_projekt()
+        except KeyboardInterrupt:
+            print("\n\n⛔ Zastavené používateľom (Ctrl+C)\n")
+            break
+        except Exception as e:
+            print(f"\n❌ Neočakávaná chyba: {e}\n")
+            if not MAIN_GENERATOR_REPEAT:
+                break
+        
+        if not MAIN_GENERATOR_REPEAT:
+            print("\n✅ Hotovo (repeat mode vypnutý)\n")
+            break
+        
+        print(f"\n⏳ Čakanie {WORKER_SLEEP_SECONDS}s pred ďalším cyklom...\n")
+        time.sleep(WORKER_SLEEP_SECONDS)
     
 
 

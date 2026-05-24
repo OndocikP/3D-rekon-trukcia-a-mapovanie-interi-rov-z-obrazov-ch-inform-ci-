@@ -6,83 +6,114 @@ Komplétna aplikácia pre 3D rekonštrukciu a mapovanie interiérov miestností 
 
 ```
 project/
-├── Front-and/                # React Native Frontend (Expo)
-│   ├── app/                 # Navigácia a routy
+├── Front-and/                      # React Native Frontend (Expo)
+│   ├── app/                        # Navigácia a routy (Expo Router)
+│   │   ├── _layout.tsx             # Root layout s autentifikáciou
+│   │   ├── login.tsx               # Prihlásenie
+│   │   ├── register.tsx            # Registrácia
+│   │   ├── forgotPassword.tsx       # Obnovenie hesla
+│   │   ├── main.tsx                # Hlavná obrazovka s projektami
+│   │   ├── generate.tsx            # Generovanie projektov
+│   │   ├── settings.tsx            # Nastavenia
+│   │   ├── admin.tsx               # Admin panel
+│   │   ├── admin-user/[id].tsx      # Detail používateľa (admin)
+│   │   ├── (tabs)/                 # Tab navigácia
+│   │   └── project/                # Project detail screen
 │   ├── src/
-│   │   ├── api/             # API klient na komunikáciu s backendmi
-│   │   ├── context/         # React Context (AuthContext)
-│   │   ├── screens/         # Aplikačné obrazovky
-│   │   ├── components/      # Reusable komponenty
-│   │   └── theme/           # Témy a farby
-│   ├── .env                 # Frontend konfigurácia
-│   └── package.json
+│   │   ├── api/                    # API klient na komunikáciu s backendmi
+│   │   ├── context/                # React Context (AuthContext)
+│   │   ├── screens/                # Obrazovky komponentov
+│   │   ├── components/             # Reusable komponenty
+│   │   ├── theme/                  # Témy a farby
+│   │   └── utils/                  # Utility funkcie
+│   ├── .env                        # Frontend konfigurácia
+│   ├── package.json                # NPM dependencies
+│   └── tsconfig.json               # TypeScript konfigurácia
 │
-├── Back-end/                # Python FastAPI Backend
-│   ├── main.py              # FastAPI aplikácia
-│   ├── models.py            # SQLAlchemy databázové modely
-│   ├── schemas.py           # Pydantic validačné schémy
-│   ├── database.py          # Databázové pripojenie
-│   ├── auth.py              # Autentifikačné funkcie
-│   ├── routers/
-│   │   ├── auth.py          # Auth endpointy (login, register)
-│   │   └── projects.py      # Project endpointy
-│   ├── projects/            # Priečinok na obrázky (user_id/project_id/images)
-│   ├── .env                 # Backend konfigurácia
-│   ├── requirements.txt     # Python dependencies
-│   ├── init_db.py           # Skript na inicializáciu DB
-│   └── README.md            # Backend dokumentácia
+├── Back-end/                       # Python FastAPI Backend
+│   ├── main.py                     # API server (FastAPI)
+│   ├── main-generator.py           # 3D model generator (Nerfstudio)
+│   ├── nerfstudio_handler.py       # Nerfstudio processing
+│   ├── supabase_comunication.py    # Supabase DB komunikácia
+│   ├── password_reset.py           # Reset hesla
+│   ├── projects/                   # Priečinok na projekty (user_id/project_id/images)
+│   ├── .env                        # Backend konfigurácia
+│   ├── requirements.txt            # Python dependencies
+│   ├── Dockerfile                  # Docker image
+│   ├── README.md                   # Backend dokumentácia
+│   └── yolov8l.pt                  # YOLO model (objektová detekcia)
 │
-├── SETUP_GUIDE.md           # Komplétný setup guide
-└── README.md               # Tento súbor
+└── docker-compose.yml              # Docker Compose pre celý projekt
 ```
 
 ## Funkcionality
 
 ### ✅ Autentifikácia
 - [x] Registrácia nového používateľa
-- [x] Prihlásenie s JWT tokenmi
-- [x] Zabudnuté heslo (prepare na email)
+- [x] Prihlásenie cez Supabase RPC
+- [x] Obnovenie hesla (email kód)
 - [x] Bezpečné ukladanie hesiel (bcrypt)
+- [x] Admin panel s manažmentom používateľov
 
 ### ✅ Správa Projektov
 - [x] Vytvorenie nového projektu
 - [x] Zoznam projektov používateľa
 - [x] Nahrávanie obrázkov do projektu
 - [x] Zaznamenávanie stavu projektu (pending, generating, generated, failed)
+- [x] Detekcia objektov v obrazoch (YOLO)
+
+### ✅ 3D Model Generovanie
+- [x] Nerfstudio spracovanie obrázkov
+- [x] NeRF rekonštrukcia (3D model)
+- [x] Generovanie PLY modelov
+- [x] 3D Viewer v mobile aplikácii (Three.js)
 
 ### ✅ Backend API
 - [x] RESTful API s FastAPI
-- [x] PostgreSQL databáza
-- [x] SQLAlchemy ORM
+- [x] Supabase PostgreSQL databáza
+- [x] Supabase RPC funkcie
 - [x] CORS povolenie pre frontend
 - [x] JWT autentifikácia
 
 ### ✅ Frontend
-- [x] React Native s Expo
-- [x] Moderna a responzívna UI
-- [x] Color theme customization
-- [x] Image picker a upload
+- [x] React Native s Expo (iOS, Android, Web)
+- [x] Expo Router navigácia
+- [x] Autentifikačný flow
+- [x] Upload obrázkov
+- [x] 3D model viewer
 
 ## Rýchly Start
 
-1. **[Prečítaj si SETUP_GUIDE.md](SETUP_GUIDE.md)** pre detailný setup
+1. **[Prečítaj si Back-end/README.md](Back-end/README.md)** a **Front-and/README.md** pre detailný setup
 
 Stručne:
 
 ```bash
-# Backend
+# Backend API Server (localhost:8000)
 cd Back-end
 pip install -r requirements.txt
-python init_db.py
-python main.py
+python -m main
 
-# Frontend (v novom terminále)
+# Backend 3D Model Generator (v inom terminále)
+cd Back-end
+python -m main-generator
+
+# Frontend (v ďalšom terminále)
 cd Front-and
 npm install
 npx expo start
+
+# Mobilná aplikácia (Android/iOS)
+npx expo start --android
+npx expo start --ios
+
+# Web aplikácia
+npm run web
 ```
 
 ## Databázová Štruktúra
+
+Backend komunikuje s **Supabase** (PostgreSQL v cloude):
 
 ### Tabuľka: users
 ```sql
@@ -90,6 +121,7 @@ npx expo start
 - username (unique, required)
 - email (unique, required)
 - hashed_password (required)
+- role (enum: user, admin)
 - created_at (datetime)
 - updated_at (datetime)
 ```
@@ -97,13 +129,22 @@ npx expo start
 ### Tabuľka: projects
 ```sql
 - id (UUID, primary key)
-- user_id (FK -> users.id, required)
-- project_name (required)
-- status (enum: pending, generating, generated, failed)
+- owner_id (FK -> users.id, required)
+- name (required)
 - description (optional)
+- status (enum: pending, generating, generated, failed)
+- objects (text: detekované objekty)
 - image_count (integer)
 - created_at (datetime)
 - updated_at (datetime)
+```
+
+### Tabuľka: project_images
+```sql
+- id (UUID, primary key)
+- project_id (FK -> projects.id)
+- url (text: URL na obrázok)
+- uploaded_at (datetime)
 ```
 
 ## API Dokumentácia
@@ -138,18 +179,23 @@ http://localhost:8000/docs
 - **State Management**: React Context
 - **Navigation**: Expo Router
 - **Styling**: React Native StyleSheet
-- **Storage**: AsyncStorage (JWT)
+- **Storage**: AsyncStorage (JWT tokeny)
+- **3D Rendering**: Three.js (PLY model viewer)
 
 ### Backend
 - **Framework**: FastAPI (Python)
-- **Databáza**: PostgreSQL
-- **ORM**: SQLAlchemy
-- **Auth**: JWT + bcrypt
+- **Databáza**: Supabase PostgreSQL (cloud)
+- **RPC Funkcie**: Supabase RPC pre autentifikáciu
+- **Auth**: JWT tokeny + bcrypt
 - **Validation**: Pydantic
+- **3D Processing**: Nerfstudio (NeRF reconstruction)
+- **Object Detection**: YOLOv8 (objektová detekcia)
 
-### DevOps
-- **Containerization**: Docker
+### DevOps & Infrastructure
+- **Containerization**: Docker & Docker Compose
 - **Process Manager**: Uvicorn
+- **File Storage**: Supabase Storage
+- **Database**: Supabase PostgreSQL
 
 ## Bezpečnosť
 
@@ -161,18 +207,30 @@ http://localhost:8000/docs
 
 ## Budúce Rozšírenia
 
-- [ ] Email notifikácie pre забúté hesla
-- [ ] 3D model generovanie z obrázkov
+- [ ] Email notifikácie pre zmeny statusu projektov
 - [ ] Sharing projektov s inými používateľmi
-- [ ] Webhooks na frontend pri zmene statusu
-- [ ] Real-time progress tracking
-- [ ] Multi-language support
+- [ ] Webhooks na frontend pri zmene statusu (Socket.io)
+- [ ] Real-time progress tracking počas generovania
+- [ ] Mobile-optimalizovaný 3D viewer s rotáciou
+- [ ] Batch processing viacerých projektov
 - [ ] API rate limiting
-- [ ] Database backups
+- [ ] Database backups (automated)
+- [ ] Advanced project analytics
+- [ ] Dark mode pre admin panel
 
 ## Troubleshooting
 
-Pozri sa na **[SETUP_GUIDE.md - Troubleshooting](SETUP_GUIDE.md#6-troubleshooting)** sekciu.
+### Frontend problémy:
+- **"Port 8081 already in use"** → `npx expo start --port 8085` alebo zastaviť iný proces
+- **Module not found** → `npm install` a `npm cache clean --force`
+- **AsyncStorage undefined** → Inštalovať: `npm install @react-native-async-storage/async-storage`
+
+### Backend problémy:
+- **"Address already in use:8000"** → `lsof -i :8000` a zastaviť proces
+- **Supabase connection failed** → Skontrolovať `.env` file (SUPABASE_URL, SUPABASE_KEY)
+- **YOLO model not found** → Skontrolovať či `yolov8l.pt` existuje v `Back-end/`
+
+Viac detailov nájdeš v [Back-end/README.md](Back-end/README.md)
 
 ## Licencia
 
@@ -184,5 +242,5 @@ Pre otázky prosím kontaktuj vývojársky tím.
 
 ---
 
-**Posledná aktualizácia**: Apríl 2024  
-**Verzia**: 1.0.0
+**Posledná aktualizácia**: Máj 2026  
+**Verzia**: 2.0.0 - Vyčistený a minimálny setup
