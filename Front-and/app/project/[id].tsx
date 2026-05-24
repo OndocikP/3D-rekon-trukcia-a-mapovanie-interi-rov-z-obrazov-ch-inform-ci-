@@ -291,17 +291,23 @@ export default function ProjectDetailScreen() {
                 onPress={handleDownload}
                 style={{ flex: 0.6, minWidth: 65 }}
               />
-              <AppButton
-                icon="eye"
-                title="Viewer V2"
-                variant="secondary"
-                onPress={() =>
-                  router.push({
-                    pathname: `/project-V2/${id}`,
-                  })
-                }
-                style={{ flex: 0.7, minWidth: 75 }}
-              />
+              {
+                /*
+                  <AppButton
+                    icon="eye"
+                    title="Viewer V2"
+                    variant="secondary"
+                    onPress={() =>
+                      router.push({
+                        pathname: `/project-V2/${id}`,
+                      })
+                    }
+                    style={{ flex: 0.7, minWidth: 75 }}
+                  />
+
+                */
+              }
+              
               <AppButton
                 icon="home"
                 title="Main"
