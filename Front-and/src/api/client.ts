@@ -3,7 +3,7 @@
  * Používa fetch API pre požiadavky
  */
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:8000";
+export const API_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 interface ApiResponse<T> {
   data?: T;
@@ -379,15 +379,16 @@ export function get3DModelUrl(
 
 export interface MediaFile {
   filename: string;
-  type: "video" | "model";
+  type: "video" | "model" | "image";
   size: number;
 }
 
 export interface ProjectMedia {
   videos: MediaFile[];
   models: MediaFile[];
+  images: MediaFile[];
   has_media: boolean;
-  priority: "video" | "model" | null;
+  priority: "video" | "image" | "model" | null;
 }
 
 /**
@@ -404,7 +405,7 @@ export async function getProjectMedia(
  */
 export function getProjectMediaUrl(
   projectId: string,
-  mediaType: "video" | "model",
+  mediaType: "video" | "model" | "image",
   filename: string,
   token?: string
 ): string {

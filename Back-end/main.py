@@ -743,7 +743,7 @@ async def download_3d_model_all(user_id: str, project_id: str):
 
 @app.get("/api/projects/{project_id}/media")
 async def get_project_media(project_id: str):
-    """Zíkaj všetky dostupné médiá (videá MP4 a 3D modely PLY) pre projekt"""
+    """Zíkaj všetky dostupné médiá (videá MP4, 3D modely PLY, obrázky) pre projekt"""
     try:
         print(f"\n🎯 GET PROJECT MEDIA ENDPOINT")
         print(f"   project_id: {project_id}")
@@ -754,6 +754,7 @@ async def get_project_media(project_id: str):
         
         videos = []
         models = []
+        images = []
         
         if projects_root.exists():
             for user_dir in projects_root.iterdir():
@@ -774,24 +775,34 @@ async def get_project_media(project_id: str):
                                 "type": "model",
                                 "size": file.stat().st_size
                             })
+                        # Hľadaj obrázky (PNG, JPG, JPEG, GIF, WEBP)
+                        for pattern in ['*.png', '*.jpg', '*.jpeg', '*.gif', '*.webp']:
+                            for file in media_dir.glob(pattern):
+                                images.append({
+                                    "filename": file.name,
+                                    "type": "image",
+                                    "size": file.stat().st_size
+                                })
                         break
         
-        print(f"✅ Nájdené videá: {len(videos)}, modely: {len(models)}")
+        print(f"✅ Nájdené videá: {len(videos)}, modely: {len(models)}, obrázky: {len(images)}")
         
         return {
             "videos": videos,
             "models": models,
-            "has_media": len(videos) > 0 or len(models) > 0,
-            "priority": "video" if videos else ("model" if models else None)
+            "images": images,
+            "has_media": len(videos) > 0 or len(models) > 0 or len(images) > 0,
+            "priority": "video" if videos else ("image" if images else ("model" if models else None))
         }
     
     except Exception as e:
         print(f"❌ Error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
+
 @app.get("/api/projects/{project_id}/media/{media_type}/{filename}")
 async def get_project_media_file(project_id: str, media_type: str, filename: str, token: str = Query(None)):
-    """Stiahni médiá súbor (video alebo model)"""
+    """Stiahni médiá súbor (video, model, alebo obrázok)"""
     try:
         print(f"\n🎯 GET PROJECT MEDIA FILE ENDPOINT")
         print(f"   project_id: {project_id}, media_type: {media_type}, filename: {filename}")
@@ -802,14 +813,19 @@ async def get_project_media_file(project_id: str, media_type: str, filename: str
             raise HTTPException(status_code=400, detail="Invalid filename")
         
         # Podporované formáty
+        valid_extensions = None
         if media_type == "video":
-            extension = ".mp4"
+            valid_extensions = [".mp4"]
         elif media_type == "model":
-            extension = ".ply"
+            valid_extensions = [".ply"]
+        elif media_type == "image":
+            valid_extensions = [".png", ".jpg", ".jpeg", ".gif", ".webp"]
         else:
             raise HTTPException(status_code=400, detail="Invalid media type")
         
-        if not filename.endswith(extension):
+        # Skontroluj príponu
+        file_has_valid_extension = any(filename.lower().endswith(ext) for ext in valid_extensions)
+        if not file_has_valid_extension:
             raise HTTPException(status_code=400, detail=f"Invalid file extension for {media_type}")
         
         # Nájsť súbor v priečinku PROJECTS_PATH/user_id/project_id/3Dmodel/
@@ -846,6 +862,29 @@ async def get_project_media_file(project_id: str, media_type: str, filename: str
                     "Cache-Control": "public, max-age=31536000",
                     "Content-Length": str(file_size),
                     "Accept-Ranges": "bytes"
+                }
+            )
+        elif media_type == "image":
+            # Určenie MIME type na základe prípony
+            mime_types = {
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".gif": "image/gif",
+                ".webp": "image/webp"
+            }
+            file_ext = next((ext for ext in mime_types.keys() if filename.lower().endswith(ext)), ".png")
+            mime_type = mime_types[file_ext]
+            
+            file_size = file_path.stat().st_size
+            print(f"🖼️  Returning image file, size: {file_size} bytes, mime: {mime_type}")
+            return FileResponse(
+                file_path,
+                media_type=mime_type,
+                headers={
+                    "Content-Disposition": f"inline; filename={filename}",
+                    "Cache-Control": "public, max-age=31536000",
+                    "Content-Length": str(file_size)
                 }
             )
         else:  # model

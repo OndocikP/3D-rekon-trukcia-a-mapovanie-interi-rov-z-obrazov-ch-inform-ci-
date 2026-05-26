@@ -1,0 +1,17 @@
+# YOLO 3D Object Annotator - Requirements
+# Inštalácia: pip install -r requirements_yolo_3d.txt
+
+# Core dependencies
+ultralytics>=8.0.0          # YOLOv8 (AI object detection)
+opencv-python>=4.8.0       # OpenCV (image processing)
+numpy>=1.24.0              # NumPy (numerical operations)
+python-dotenv>=1.0.0       # .env configuration
+
+# Optional but recommended
+open3d>=0.17.0             # 3D visualization and processing
+matplotlib>=3.7.0          # Plotting and visualization
+pillow>=9.5.0              # Image processing
+
+# For development/testing
+pytest>=7.4.0              # Unit testing
+black>=23.0.0              # Code formatting

@@ -233,7 +233,7 @@ def spracuj_projekt():
 
                 if success:
                     print(f"✅ Úspešné vytvorenie 3D modelu")
-                    update_project_status(project_id, "Generated")
+                    #update_project_status(project_id, "Generated")
                 else:
                     print(f"❌ Chyba pri vytváraní 3D modelu\n")
                     increment_project_try(project_id, project.get('try') or 0)

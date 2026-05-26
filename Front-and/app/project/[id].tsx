@@ -11,7 +11,7 @@ import { MediaViewer } from '../../src/components/MediaViewer';
 import { useColors } from '../../src/theme/ColorsProvider';
 import { useAuth } from '../../src/context/AuthContext';
 import * as apiClient from '../../src/api/client';
-import { API_URL } from '../../src/utils/config';
+import { API_BASE_URL } from '../../src/api/client';
 
 export default function ProjectDetailScreen() {
   const { colors } = useColors();
@@ -73,11 +73,11 @@ export default function ProjectDetailScreen() {
         }
       } else {
         console.warn('[PROJECT] No data in response:', response.error);
-        setMedia({ videos: [], models: [], has_media: false, priority: null });
+        setMedia({ videos: [], models: [], images: [], has_media: false, priority: null });
       }
     } catch (error) {
       console.error('[PROJECT] Error loading media:', error);
-      setMedia({ videos: [], models: [], has_media: false, priority: null });
+      setMedia({ videos: [], models: [], images: [], has_media: false, priority: null });
     } finally {
       setLoadingMedia(false);
     }
@@ -100,7 +100,7 @@ export default function ProjectDetailScreen() {
       setDownloading(true);
       console.log(`📦 Začínam download 3D modelu pre projekt: ${id}, user: ${user.id}`);
       
-      const downloadUrl = `${API_URL}/projects/${user.id}/${id}/3d-model/download-all`;
+      const downloadUrl = `${API_BASE_URL}/api/projects/${user.id}/${id}/3d-model/download-all`;
       
       console.log(`🌐 URL: ${downloadUrl}`);
 
@@ -184,140 +184,125 @@ export default function ProjectDetailScreen() {
           <ActivityIndicator size="large" color={colors.textPrimary} />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <View style={styles.content}>
-
-            {/* HEADER */}
-            <View style={styles.headerRow}>
-              <Text style={[styles.logoIcon, { color: colors.textPrimary }]}>⌁</Text>
-              <Text style={[styles.title, { color: colors.textPrimary }]}>{projectName}</Text>
-            </View>
-
-            {/* MEDIA VIEWER (VIDEOS + 3D MODELS) */}
-            {loadingMedia ? (
-              <View
-                style={[
-                  styles.imageWrapper,
-                  { backgroundColor: colors.card, borderColor: colors.cardBorder },
-                  imageStyle,
-                ]}
-              >
-                <ActivityIndicator size="large" color={colors.textPrimary} />
-              </View>
-            ) : media?.has_media ? (
-              <View
-                style={[
-                  styles.imageWrapper,
-                  { borderColor: colors.cardBorder },
-                  imageStyle,
-                ]}
-              >
-                <MediaViewer
-                  projectId={id || ''}
-                  token={token || ''}
-                  width={imageStyle.width}
-                  height={imageStyle.height}
-                />
-              </View>
-            ) : (
-              <View
-                style={[
-                  styles.imageWrapper,
-                  { backgroundColor: colors.card, borderColor: colors.cardBorder },
-                  imageStyle,
-                ]}
-              >
-                <Image
-                  source={require('../../src/assets/sample-room.png')}
-                  style={styles.roomImage}
-                  resizeMode="cover"
-                />
-              </View>
-            )}
-
-            {/* INFO CARD WITH DESCRIPTION AND OBJECTS */}
-            <View
-              style={[
-                styles.infoCard,
-                { backgroundColor: colors.card, borderColor: colors.cardBorder },
-              ]}
-            >
-              {project?.description ? (
-                <View>
-                  <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>
-                    Description:
-                  </Text>
-                  <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-                    {project.description}
-                  </Text>
-                </View>
-              ) : null}
-              {project?.objects ? (
-                <View>
-                  <Text style={[styles.infoTitle, { color: colors.textPrimary, marginTop: project?.description ? 8 : 0 }]}>
-                    Object in room:
-                  </Text>
-                  <Text style={[styles.infoText, { color: colors.textSecondary, marginTop: 4 }]}>
-                    {project.objects}
-                  </Text>
-                </View>
-              ) : null}
-              {!project?.description && !project?.objects ? (
-                <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-                  Žiadne informácie k dispozícii
-                </Text>
-              ) : null}
-            </View>
-
-            {/* BUTTONS */}
-            <View style={styles.buttonRow}>
-              <AppButton
-                icon="edit"
-                title="Edit"
-                variant="secondary"
-                onPress={() =>
-                  router.push({
-                    pathname: `/project/${id}/edit`,
-                    params: { name: projectName },
-                  })
-                }
-                style={{ flex: 0.5, minWidth: 45 }}
-              />
-              <AppButton
-                icon="download"
-                title="Download"
-                variant="secondary"
-                disabled={downloading || !media?.has_media}
-                onPress={handleDownload}
-                style={{ flex: 0.6, minWidth: 65 }}
-              />
-              {
-                /*
-                  <AppButton
-                    icon="eye"
-                    title="Viewer V2"
-                    variant="secondary"
-                    onPress={() =>
-                      router.push({
-                        pathname: `/project-V2/${id}`,
-                      })
-                    }
-                    style={{ flex: 0.7, minWidth: 75 }}
-                  />
-
-                */
-              }
-              
-              <AppButton
-                icon="home"
-                title="Main"
-                onPress={() => router.replace('/main')}
-                style={{ flex: 0.5, minWidth: 45 }}
-              />
-            </View>
-
+        <View style={styles.mainLayout}>
+          {/* HEADER */}
+          <View style={styles.headerRow}>
+            <Text style={[styles.logoIcon, { color: colors.textPrimary }]}>⌁</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>{projectName}</Text>
           </View>
-        </ScrollView>
+
+          {/* THREE COLUMNS - Media Viewer (handles left/middle/right panels) */}
+          {loadingMedia ? (
+            <View style={[styles.mediaContainer, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <ActivityIndicator size="large" color={colors.textPrimary} />
+            </View>
+          ) : media?.videos && media.videos.length > 0 ? (
+            <View style={styles.mediaContainer}>
+              <MediaViewer
+                projectId={id || ''}
+                token={token || ''}
+                width={screenWidth - 48}
+                height={screenHeight * 0.55}
+              />
+            </View>
+          ) : media?.models && media.models.length > 0 ? (
+            <View style={styles.mediaContainer}>
+              <MediaViewer
+                projectId={id || ''}
+                token={token || ''}
+                width={screenWidth - 48}
+                height={screenHeight * 0.55}
+              />
+            </View>
+          ) : media?.images && media.images.length > 0 ? (
+            <View style={[styles.mediaContainer, { backgroundColor: colors.card, borderColor: colors.cardBorder, width: screenWidth / 3 }]}>
+              <Image
+                source={{ uri: `${API_BASE_URL}/api/projects/${id}/media/image/${media.images[0].filename}` }}
+                style={[
+                  styles.roomImage,
+                  { width: '100%', height: screenHeight * 0.55 }
+                ]}
+                resizeMode="cover"
+              />
+            </View>
+          ) : (
+            <View style={[styles.mediaContainer, { backgroundColor: colors.card, borderColor: colors.cardBorder, width: screenWidth / 3 }]}>
+              <Image
+                source={require('../../src/assets/sample-room.png')}
+                style={[
+                  styles.roomImage,
+                  { width: '100%', height: screenHeight * 0.55 }
+                ]}
+                resizeMode="cover"
+              />
+            </View>
+          )}
+
+          {/* INFO CARD WITH DESCRIPTION AND OBJECTS */}
+          <View
+            style={[
+              styles.infoCard,
+              { backgroundColor: colors.card, borderColor: colors.cardBorder },
+            ]}
+          >
+            {project?.description ? (
+              <View>
+                <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>
+                  Description:
+                </Text>
+                <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                  {project.description}
+                </Text>
+              </View>
+            ) : null}
+            {project?.objects ? (
+              <View>
+                <Text style={[styles.infoTitle, { color: colors.textPrimary, marginTop: project?.description ? 8 : 0 }]}>
+                  Object in room:
+                </Text>
+                <Text style={[styles.infoText, { color: colors.textSecondary, marginTop: 4 }]}>
+                  {project.objects}
+                </Text>
+              </View>
+            ) : null}
+            {!project?.description && !project?.objects ? (
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                Žiadne informácie k dispozícii
+              </Text>
+            ) : null}
+          </View>
+
+          {/* BUTTONS */}
+          <View style={styles.buttonRow}>
+            <AppButton
+              icon="edit"
+              title="Edit"
+              variant="secondary"
+              onPress={() =>
+                router.push({
+                  pathname: `/project/${id}/edit`,
+                  params: { name: projectName },
+                })
+              }
+              style={{ flex: 0.5, minWidth: 45 }}
+            />
+            <AppButton
+              icon="download"
+              title="Download"
+              variant="secondary"
+              disabled={downloading || !media?.has_media}
+              onPress={handleDownload}
+              style={{ flex: 0.6, minWidth: 65 }}
+            />
+            <AppButton
+              icon="home"
+              title="Main"
+              onPress={() => router.replace('/main')}
+              style={{ flex: 0.5, minWidth: 45 }}
+            />
+          </View>
+
+        </View>
       )}
     </LinearGradient>
   );
@@ -353,6 +338,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
+  mainLayout: {
+    flex: 1,
+    padding: 24,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+
   content: {
     width: '100%',
     maxWidth: 1200,
@@ -384,6 +377,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  mediaContainer: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 20,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
   },
 
   roomImage: {

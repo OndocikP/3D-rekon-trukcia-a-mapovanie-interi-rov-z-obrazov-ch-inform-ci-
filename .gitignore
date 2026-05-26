@@ -41,7 +41,7 @@ venv/
 *.env.server2
 
 # Images
-*.jpg
+#*.jpg
 *.jpeg
 *.png
 *.gif

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import * as apiClient from '../api/client';
+import { API_BASE_URL } from '../api/client';
 
 interface MediaViewerProps {
   projectId: string;
@@ -24,6 +25,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
   const sceneRef = useRef<any>(null);
   const controlsRef = useRef<any>(null);
   const cameraRef = useRef<any>(null);
+  const pointsMaterialRef = useRef<any>(null);
   
   const [media, setMedia] = useState<apiClient.ProjectMedia | null>(null);
   const [displayMode, setDisplayMode] = useState<DisplayMode>('none');
@@ -34,11 +36,186 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
     videos: Map<string, Blob>;
     models: Map<string, ArrayBuffer>;
   } | null>(null);
+  const [pixelSize, setPixelSize] = useState(0.5);
+  const [rotationAngle, setRotationAngle] = useState(261);
+  const modelGroupRef = useRef<any>(null);
+  const [showControlsInfo, setShowControlsInfo] = useState(false);
+  const infoDivRef = useRef<HTMLDivElement | null>(null);
+  const [centerX, setCenterX] = useState(0);
+  const [centerY, setCenterY] = useState(0);
+  const [centerZ, setCenterZ] = useState(0);
+  const [maxDistance, setMaxDistance] = useState(100);
+  const [maxDistanceLimit, setMaxDistanceLimit] = useState(100);
+  const [showCenter, setShowCenter] = useState(true);
+  const [filterDistanceActive, setFilterDistanceActive] = useState(true);
+  const centerSphereRef = useRef<any>(null);
+  const pointsRef = useRef<any>(null);
+  const pointsDataRef = useRef<{
+    scaledCentroid: THREE.Vector3;
+    posArray: Float32Array;
+    colorArray: Float32Array | null;
+    material: THREE.Material;
+  } | null>(null);
+
+  // Načítaj nastavenia z localStorage pri inicializácii
+  useEffect(() => {
+    const settingsKey = `mediaViewer_settings_${projectId}`;
+    const savedSettings = localStorage.getItem(settingsKey);
+    if (savedSettings) {
+      try {
+        const settings = JSON.parse(savedSettings);
+        console.log('[MEDIA VIEWER] Loaded settings from localStorage:', settings);
+        if (settings.pixelSize !== undefined) setPixelSize(settings.pixelSize);
+        if (settings.rotationAngle !== undefined) setRotationAngle(settings.rotationAngle);
+        if (settings.centerX !== undefined) setCenterX(settings.centerX);
+        if (settings.centerY !== undefined) setCenterY(settings.centerY);
+        if (settings.centerZ !== undefined) setCenterZ(settings.centerZ);
+        if (settings.maxDistance !== undefined) setMaxDistance(settings.maxDistance);
+        if (settings.showCenter !== undefined) setShowCenter(settings.showCenter);
+        if (settings.filterDistanceActive !== undefined) setFilterDistanceActive(settings.filterDistanceActive);
+      } catch (err) {
+        console.error('[MEDIA VIEWER] Error loading settings:', err);
+      }
+    }
+  }, [projectId]);
+
+  // Ulož nastavenia do localStorage keď sa zmenia
+  useEffect(() => {
+    const settingsKey = `mediaViewer_settings_${projectId}`;
+    const settings = {
+      pixelSize,
+      rotationAngle,
+      centerX,
+      centerY,
+      centerZ,
+      maxDistance,
+      showCenter,
+      filterDistanceActive,
+    };
+    localStorage.setItem(settingsKey, JSON.stringify(settings));
+    console.log('[MEDIA VIEWER] Saved settings to localStorage');
+  }, [projectId, pixelSize, rotationAngle, centerX, centerY, centerZ, maxDistance, showCenter, filterDistanceActive]);
 
   // Načítaj všetky médiá (videá a modely) pri počiatočnom otvorení
   useEffect(() => {
     loadAllMedia();
   }, [projectId]);
+
+  // Update material size when pixelSize changes
+  useEffect(() => {
+    if (pointsMaterialRef.current) {
+      pointsMaterialRef.current.size = pixelSize;
+    }
+  }, [pixelSize]);
+
+  // Update model rotation when rotationAngle changes
+  useEffect(() => {
+    if (modelGroupRef.current) {
+      const radians = (rotationAngle * Math.PI) / 180;
+      modelGroupRef.current.rotation.x = radians;
+    }
+  }, [rotationAngle]);
+
+  // Update controls info visibility
+  useEffect(() => {
+    if (infoDivRef.current) {
+      infoDivRef.current.style.display = showControlsInfo ? 'block' : 'none';
+    }
+  }, [showControlsInfo]);
+
+  // Update center sphere visibility
+  useEffect(() => {
+    if (centerSphereRef.current) {
+      centerSphereRef.current.visible = showCenter;
+    }
+  }, [showCenter]);
+
+  // Update points based on maxDistance and filterDistanceActive
+  useEffect(() => {
+    if (!pointsRef.current || !pointsDataRef.current) return;
+    
+    const { scaledCentroid, posArray, colorArray, material } = pointsDataRef.current;
+    
+    const finalPositions = [];
+    const finalColors = [];
+    
+    for (let i = 0; i < posArray.length; i += 3) {
+      if (!filterDistanceActive) {
+        // Show all points
+        finalPositions.push(posArray[i], posArray[i + 1], posArray[i + 2]);
+        if (colorArray) {
+          finalColors.push(colorArray[i], colorArray[i + 1], colorArray[i + 2]);
+        }
+      } else {
+        // Filter by distance
+        const dx = posArray[i] - centerX;
+        const dy = posArray[i + 1] - centerY;
+        const dz = posArray[i + 2] - centerZ;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        
+        if (dist <= maxDistance) {
+          finalPositions.push(posArray[i], posArray[i + 1], posArray[i + 2]);
+          if (colorArray) {
+            finalColors.push(colorArray[i], colorArray[i + 1], colorArray[i + 2]);
+          }
+        }
+      }
+    }
+    
+    const finalGeometry = new THREE.BufferGeometry();
+    finalGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(finalPositions), 3));
+    if (finalColors.length > 0) {
+      finalGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(finalColors), 3));
+    }
+    
+    pointsRef.current.geometry.dispose();
+    pointsRef.current.geometry = finalGeometry;
+    
+    // Update center sphere position
+    if (centerSphereRef.current) {
+      centerSphereRef.current.position.set(centerX, centerY, centerZ);
+    }
+  }, [maxDistance, centerX, centerY, centerZ, filterDistanceActive]);
+
+  // Reset maxDistance when model changes
+  useEffect(() => {
+    setMaxDistance(maxDistanceLimit);
+  }, [selectedModelIndex]);
+
+  // Center position keyboard controls (I/K for X, J/L for Z, U/O for Y)
+  useEffect(() => {
+    if (displayMode !== 'model') return;
+
+    const handleCenterKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      const step = 0.5; // Step size for movement
+
+      if (key === 'i') {
+        setCenterX(prev => prev + step);
+        e.preventDefault();
+      } else if (key === 'k') {
+        setCenterX(prev => prev - step);
+        e.preventDefault();
+      } else if (key === 'j') {
+        setCenterZ(prev => prev + step);
+        e.preventDefault();
+      } else if (key === 'l') {
+        setCenterZ(prev => prev - step);
+        e.preventDefault();
+      } else if (key === 'u') {
+        setCenterY(prev => prev + step);
+        e.preventDefault();
+      } else if (key === 'o') {
+        setCenterY(prev => prev - step);
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handleCenterKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleCenterKeyDown);
+    };
+  }, [displayMode]);
 
   const loadAllMedia = async () => {
     try {
@@ -144,7 +321,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       }
     } catch (error) {
       console.error('[MEDIA VIEWER] Error loading media:', error);
-      setMedia({ videos: [], models: [], has_media: false, priority: null });
+      setMedia({ videos: [], models: [], images: [], has_media: false, priority: null });
       setDisplayMode('none');
     } finally {
       setLoading(false);
@@ -297,15 +474,20 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
     infoDiv.style.fontFamily = 'monospace';
     infoDiv.style.zIndex = '10';
     infoDiv.style.textAlign = 'left';
+    infoDiv.style.display = 'none';
     infoDiv.innerHTML = `
       <div style="background: rgba(0, 0, 0, 0.5); padding: 8px 12px; border-radius: 4px; line-height: 1.6;">
         <strong>Ovládanie:</strong><br/>
         <strong>Q</strong> / <strong>E</strong> - Kamera vľavo/vpravo<br/>
         <strong>X</strong> / <strong>Z</strong> / <strong>Y</strong> - Rotovať osi<br/>
         <strong>SPACE</strong> - Pause/Resume orbit<br/>
+        <strong>I</strong> / <strong>K</strong> - Stred X+/-<br/>
+        <strong>J</strong> / <strong>L</strong> - Stred Z+/-<br/>
+        <strong>U</strong> / <strong>O</strong> - Stred Y+/-<br/>
         <strong>Myš</strong> - Drag = Otáčanie, Scroll = Zoom
       </div>
     `;
+    infoDivRef.current = infoDiv;
     
     const styleSheet = document.createElement('style');
     styleSheet.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
@@ -467,10 +649,11 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
     
     if (geometry) {
       const material = new THREE.PointsMaterial({ 
-        size: 0.5,
+        size: pixelSize,
         vertexColors: true,
         sizeAttenuation: true
       });
+      pointsMaterialRef.current = material;
       const points = new THREE.Points(geometry, material);
       
       const positionAttribute = geometry.getAttribute('position');
@@ -515,6 +698,34 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
         }
       }
       
+      // Vypočítaj centroid (stred) z filtrovaných pozícií
+      let sumCenterX = 0, sumCenterY = 0, sumCenterZ = 0;
+      for (let i = 0; i < filteredPositions.length; i += 3) {
+        sumCenterX += filteredPositions[i];
+        sumCenterY += filteredPositions[i + 1];
+        sumCenterZ += filteredPositions[i + 2];
+      }
+      const centerPointX = sumCenterX / (filteredPositions.length / 3);
+      const centerPointY = sumCenterY / (filteredPositions.length / 3);
+      const centerPointZ = sumCenterZ / (filteredPositions.length / 3);
+      
+      // Ulož centroid do state
+      setCenterX(centerPointX);
+      setCenterY(centerPointY);
+      setCenterZ(centerPointZ);
+      
+      // Vypočítaj maximálnu vzdialenosť od stredu
+      let maxDist = 0;
+      for (let i = 0; i < filteredPositions.length; i += 3) {
+        const dx = filteredPositions[i] - centerPointX;
+        const dy = filteredPositions[i + 1] - centerPointY;
+        const dz = filteredPositions[i + 2] - centerPointZ;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (dist > maxDist) maxDist = dist;
+      }
+      setMaxDistanceLimit(maxDist);
+      setMaxDistance(maxDist);
+      
       const newGeometry = new THREE.BufferGeometry();
       newGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(filteredPositions), 3));
       if (filteredColors.length > 0) {
@@ -525,6 +736,9 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       const center = new THREE.Vector3();
       newGeometry.boundingBox!.getCenter(center);
       
+      // Uložiť centroid pred transláciou pre neskôr filter
+      const centroidBeforeTranslate = { x: centerPointX, y: centerPointY, z: centerPointZ };
+      
       newGeometry.translate(-center.x, -center.y, -center.z);
       
       const size = newGeometry.boundingBox!.getSize(new THREE.Vector3());
@@ -532,14 +746,73 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       const scale = 50 / maxDim;
       newGeometry.scale(scale, scale, scale);
       
-      points.geometry = newGeometry;
+      // Aplikuj filter na základe maxDistance
+      const scaledCentroid = new THREE.Vector3(
+        (centroidBeforeTranslate.x - center.x) * scale,
+        (centroidBeforeTranslate.y - center.y) * scale,
+        (centroidBeforeTranslate.z - center.z) * scale
+      );
+      
+      const positionAttr = newGeometry.getAttribute('position') as THREE.BufferAttribute;
+      const posArray = Array.from(positionAttr.array as Float32Array);
+      const colorAttr = newGeometry.getAttribute('color') as THREE.BufferAttribute | null;
+      const colorArray = colorAttr ? Array.from(colorAttr.array as Float32Array) : null;
+      
+      const finalPositions = [];
+      const finalColors = [];
+      
+      for (let i = 0; i < posArray.length; i += 3) {
+        const dx = posArray[i] - scaledCentroid.x;
+        const dy = posArray[i + 1] - scaledCentroid.y;
+        const dz = posArray[i + 2] - scaledCentroid.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        
+        if (dist <= maxDistance) {
+          finalPositions.push(posArray[i], posArray[i + 1], posArray[i + 2]);
+          if (colorArray) {
+            finalColors.push(colorArray[i], colorArray[i + 1], colorArray[i + 2]);
+          }
+        }
+      }
+      
+      const finalGeometry = new THREE.BufferGeometry();
+      finalGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(finalPositions), 3));
+      if (finalColors.length > 0) {
+        finalGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(finalColors), 3));
+      }
+      
+      points.geometry = finalGeometry;
+      
+      // Ulož pointsRef a data pre filter update
+      pointsRef.current = points;
+      pointsDataRef.current = {
+        scaledCentroid,
+        posArray: new Float32Array(posArray),
+        colorArray: colorArray ? new Float32Array(colorArray) : null,
+        material: material,
+      };
       
       // Vytvoriť skupinu pre model aby Q/E mohli otáčať
       const modelGroup = new THREE.Group();
       modelGroup.add(points);
+      
+      // Vytvor sféru pre centroid
+      const sphereGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+      const sphereMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0xFF0000, 
+        emissive: 0xFF6666,
+        emissiveIntensity: 0.5
+      });
+      const centerSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+      centerSphere.position.copy(scaledCentroid);
+      centerSphere.visible = showCenter;
+      centerSphereRef.current = centerSphere;
+      modelGroup.add(centerSphere);
+      
       scene.add(modelGroup);
       
-      // Uložiť referenciu na modelGroup pre keyboard handler
+      // Uložiť referenciu na modelGroup pre rotation a keyboard handler
+      modelGroupRef.current = modelGroup;
       (window as any).modelGroup = modelGroup;
       
       controls.target.set(0, 0, 0);
@@ -677,39 +950,29 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
 
   return (
     <View style={[styles.container, { width, height }]}>
-      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-        {/* Media Display */}
-        <div
-          ref={containerRef}
-          style={{
+      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', gap: '12px', padding: '12px', backgroundColor: 'transparent' }}>
+        {/* TOP SECTION - Three Columns */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'row', gap: '12px', minHeight: 0 }}>
+          {/* LEFT PANEL - Controls Window */}
+          <div style={{
             flex: 1,
-            width: '100%',
-            backgroundColor: '#1e3c72',
+            backgroundColor: 'transparent',
+            borderRadius: '12px',
+            border: 'none',
+            overflowY: 'auto',
+            padding: '16px',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden',
-            position: 'relative',
-          }}
-        />
-        
-        {/* Controls */}
-        <div style={{
-          display: 'flex',
-          gap: '10px',
-          padding: '12px',
-          backgroundColor: '#f5f5f5',
-          borderTop: '1px solid #ddd',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-        }}>
+            flexDirection: 'column',
+            gap: '12px',
+            boxShadow: 'none',
+          }}>
           {/* Video Buttons */}
           {hasVideos && (
-            <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <button
                 onClick={() => setDisplayMode('video')}
                 style={{
-                  padding: '8px 16px',
+                  padding: '8px 12px',
                   backgroundColor: displayMode === 'video' ? '#2196F3' : '#ddd',
                   color: displayMode === 'video' ? 'white' : 'black',
                   border: 'none',
@@ -717,6 +980,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                   cursor: 'pointer',
                   fontSize: '12px',
                   fontWeight: 'bold',
+                  width: '100%',
                 }}
               >
                 🎬 Video ({media.videos.length})
@@ -731,6 +995,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                     fontSize: '12px',
                     borderRadius: '4px',
                     border: '1px solid #ddd',
+                    width: '100%',
                   }}
                 >
                   {media.videos.map((video, idx) => (
@@ -740,16 +1005,184 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                   ))}
                 </select>
               )}
-            </>
+            </div>
           )}
-          
+
+          {/* Pixel Size Control */}
+          {displayMode === 'model' && hasModels && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              paddingBottom: '12px',
+              borderBottom: '1px solid #ddd',
+            }}>
+              <label style={{
+                fontSize: '12px',
+                fontWeight: '600',
+                color: '#333',
+              }}>
+                📍 Pixely:
+              </label>
+              <input
+                type="range"
+                min="0.1"
+                max="5"
+                step="0.1"
+                value={pixelSize}
+                onChange={(e) => setPixelSize(parseFloat(e.target.value))}
+                style={{
+                  width: '100%',
+                  cursor: 'pointer',
+                }}
+              />
+              <input
+                type="number"
+                min="0.1"
+                max="5"
+                step="0.1"
+                value={pixelSize.toFixed(1)}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  if (!isNaN(val) && val >= 0.1 && val <= 5) {
+                    setPixelSize(val);
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '4px 6px',
+                  fontSize: '12px',
+                  borderRadius: '4px',
+                  border: '1px solid #ddd',
+                }}
+              />
+            </div>
+          )}
+
+          {/* Rotation Control */}
+          {displayMode === 'model' && hasModels && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              paddingBottom: '12px',
+              borderBottom: '1px solid #ddd',
+            }}>
+              <label style={{
+                fontSize: '12px',
+                fontWeight: '600',
+                color: '#333',
+              }}>
+                🔄 Rotácia X:
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="360"
+                step="1"
+                value={rotationAngle}
+                onChange={(e) => setRotationAngle(parseFloat(e.target.value))}
+                style={{
+                  width: '100%',
+                  cursor: 'pointer',
+                }}
+              />
+              <input
+                type="number"
+                min="0"
+                max="360"
+                step="1"
+                value={rotationAngle.toFixed(0)}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  if (!isNaN(val) && val >= 0 && val <= 360) {
+                    setRotationAngle(val);
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '4px 6px',
+                  fontSize: '12px',
+                  borderRadius: '4px',
+                  border: '1px solid #ddd',
+                }}
+              />
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setRotationAngle(90)}
+                  style={{
+                    flex: 1,
+                    minWidth: '50px',
+                    padding: '4px 8px',
+                    fontSize: '11px',
+                    backgroundColor: rotationAngle === 90 ? '#FF9800' : '#ddd',
+                    color: rotationAngle === 90 ? 'white' : 'black',
+                    border: 'none',
+                    borderRadius: '3px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  90°
+                </button>
+                <button
+                  onClick={() => setRotationAngle(180)}
+                  style={{
+                    flex: 1,
+                    minWidth: '50px',
+                    padding: '4px 8px',
+                    fontSize: '11px',
+                    backgroundColor: rotationAngle === 180 ? '#FF9800' : '#ddd',
+                    color: rotationAngle === 180 ? 'white' : 'black',
+                    border: 'none',
+                    borderRadius: '3px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  180°
+                </button>
+                <button
+                  onClick={() => setRotationAngle(270)}
+                  style={{
+                    flex: 1,
+                    minWidth: '50px',
+                    padding: '4px 8px',
+                    fontSize: '11px',
+                    backgroundColor: rotationAngle === 270 ? '#FF9800' : '#ddd',
+                    color: rotationAngle === 270 ? 'white' : 'black',
+                    border: 'none',
+                    borderRadius: '3px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  270°
+                </button>
+                <button
+                  onClick={() => setRotationAngle(0)}
+                  style={{
+                    flex: 1,
+                    minWidth: '50px',
+                    padding: '4px 8px',
+                    fontSize: '11px',
+                    backgroundColor: rotationAngle === 0 ? '#FF9800' : '#ddd',
+                    color: rotationAngle === 0 ? 'white' : 'black',
+                    border: 'none',
+                    borderRadius: '3px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  0°
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Model Buttons */}
           {hasModels && (
-            <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '12px', borderBottom: '1px solid #ddd' }}>
               <button
                 onClick={() => setDisplayMode('model')}
                 style={{
-                  padding: '8px 16px',
+                  padding: '8px 12px',
                   backgroundColor: displayMode === 'model' ? '#4CAF50' : '#ddd',
                   color: displayMode === 'model' ? 'white' : 'black',
                   border: 'none',
@@ -757,6 +1190,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                   cursor: 'pointer',
                   fontSize: '12px',
                   fontWeight: 'bold',
+                  width: '100%',
                 }}
               >
                 🧊 Model PLY ({media.models.length})
@@ -771,6 +1205,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                     fontSize: '12px',
                     borderRadius: '4px',
                     border: '1px solid #ddd',
+                    width: '100%',
                   }}
                 >
                   {media.models.map((model, idx) => (
@@ -780,9 +1215,224 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                   ))}
                 </select>
               )}
-            </>
+            </div>
+          )}
+
+          {/* Center Position Display & Adjustment - Horizontal */}
+          {displayMode === 'model' && hasModels && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              paddingBottom: '12px',
+              borderBottom: '1px solid #ddd',
+            }}>
+              <label style={{
+                fontSize: '12px',
+                fontWeight: '600',
+                color: '#333',
+              }}>
+                ⊙ Stred (X, Y, Z):
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="number"
+                  value={centerX.toFixed(2)}
+                  onChange={(e) => setCenterX(parseFloat(e.target.value))}
+                  step="0.1"
+                  style={{
+                    width: '70px',
+                    padding: '4px 6px',
+                    fontSize: '11px',
+                    borderRadius: '3px',
+                    border: '1px solid #ddd',
+                  }}
+                  placeholder="X"
+                />
+                <input
+                  type="number"
+                  value={centerY.toFixed(2)}
+                  onChange={(e) => setCenterY(parseFloat(e.target.value))}
+                  step="0.1"
+                  style={{
+                    width: '70px',
+                    padding: '4px 6px',
+                    fontSize: '11px',
+                    borderRadius: '3px',
+                    border: '1px solid #ddd',
+                  }}
+                  placeholder="Y"
+                />
+                <input
+                  type="number"
+                  value={centerZ.toFixed(2)}
+                  onChange={(e) => setCenterZ(parseFloat(e.target.value))}
+                  step="0.1"
+                  style={{
+                    width: '70px',
+                    padding: '4px 6px',
+                    fontSize: '11px',
+                    borderRadius: '3px',
+                    border: '1px solid #ddd',
+                  }}
+                  placeholder="Z"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Distance Filter - Horizontal with Toggle */}
+          {displayMode === 'model' && hasModels && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              paddingBottom: '12px',
+              borderBottom: '1px solid #ddd',
+            }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <label style={{
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  color: '#333',
+                  whiteSpace: 'nowrap',
+                }}>
+                  📏 Vzdialenosť:
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max={maxDistanceLimit}
+                  step="0.1"
+                  value={maxDistance.toFixed(2)}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val) && val >= 0 && val <= maxDistanceLimit) {
+                      setMaxDistance(val);
+                    }
+                  }}
+                  disabled={!filterDistanceActive}
+                  style={{
+                    flex: 1,
+                    padding: '4px 6px',
+                    fontSize: '12px',
+                    borderRadius: '4px',
+                    border: '1px solid #ddd',
+                    opacity: filterDistanceActive ? 1 : 0.5,
+                    cursor: filterDistanceActive ? 'text' : 'not-allowed',
+                  }}
+                />
+                <button
+                  onClick={() => setFilterDistanceActive(!filterDistanceActive)}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    backgroundColor: filterDistanceActive ? '#4CAF50' : '#ccc',
+                    color: filterDistanceActive ? 'white' : '#666',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {filterDistanceActive ? '✓ AKT' : '✗ OFF'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Center Visibility & Info Toggle */}
+          {displayMode === 'model' && hasModels && (
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => setShowCenter(!showCenter)}
+                style={{
+                  flex: 1,
+                  minWidth: '80px',
+                  padding: '6px 8px',
+                  fontSize: '12px',
+                  backgroundColor: showCenter ? '#FF6666' : '#ddd',
+                  color: showCenter ? 'white' : 'black',
+                  border: 'none',
+                  borderRadius: '3px',
+                  cursor: 'pointer',
+                  fontWeight: '500',
+                }}
+              >
+                ⊙ Stred
+              </button>
+              <button
+                onClick={() => setShowControlsInfo(!showControlsInfo)}
+                style={{
+                  flex: 1,
+                  minWidth: '80px',
+                  padding: '6px 8px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  backgroundColor: showControlsInfo ? '#2196F3' : '#ddd',
+                  color: showControlsInfo ? 'white' : 'black',
+                  border: 'none',
+                  borderRadius: '3px',
+                  cursor: 'pointer',
+                }}
+              >
+                ⓘ Help
+              </button>
+            </div>
           )}
         </div>
+        {/* END LEFT PANEL */}
+
+        {/* MIDDLE PANEL - Media Display Window */}
+        <div
+          ref={containerRef}
+          style={{
+            flex: 1,
+            backgroundColor: '#1e3c72',
+            borderRadius: '12px',
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+            position: 'relative',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          }}
+        ></div>
+
+        {/* RIGHT PANEL - Floor Plan */}
+        <div style={{
+          flex: 1,
+          backgroundColor: '#ffffff',
+          borderRadius: '12px',
+          border: 'none',
+          display: media?.images && media.images.length > 0 ? 'flex' : 'none',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden',
+          position: 'relative',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          pointerEvents: media?.images && media.images.length > 0 ? 'auto' : 'none',
+        }}>
+          {media?.images && media.images.length > 0 ? (
+            <img
+              src={`${API_BASE_URL}/api/projects/${projectId}/media/image/${media.images[0].filename}`}
+              alt="Floor Plan"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                padding: '8px',
+              }}
+              onError={(e) => {
+                console.error('[MEDIA VIEWER] Image load error:', e);
+                (e.target as HTMLImageElement).src = '/project/assets/images/floarPlanDefault.jpg';
+              }}
+            />
+          ) : null}
+        </div>
+      </div>
       </div>
     </View>
   );

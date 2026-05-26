@@ -23,14 +23,34 @@ except ImportError:
 
 def get_supabase_client():
     """Vytvor Supabase klienta"""
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        raise ValueError("SUPABASE_URL alebo SUPABASE_KEY nie sú nastavené v .env")
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+    try:
+        from supabase import create_client
+        
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_KEY")
+        
+        # Debug output
+        print(f"   🔧 SUPABASE_URL: {url[:30]}..." if url else "   ❌ SUPABASE_URL nie je nastavený!")
+        print(f"   🔧 SUPABASE_KEY: {key[:20]}..." if key else "   ❌ SUPABASE_KEY nie je nastavený!")
+        
+        if not url or not key:
+            raise ValueError("SUPABASE_URL alebo SUPABASE_KEY nie sú nastavené v .env")
+        
+        supabase = create_client(url, key)
+        print("   ✅ Supabase pripojené")
+        return supabase
+        
+    except Exception as e:
+        print(f"   ❌ Supabase chyba: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def get_oldest_pending_project():
     """
-    Nájdi najstarší projekt so statusom NIE 'Generated' a try < 3
+    Nájdi najstarší projekt so statusom 'pending' alebo 'procesing' alebo 'training'
+    a try < 3
     
     Returns:
         dict: Projekt dáta (id, owner_id, name, status, created_at, objects, try)
@@ -39,9 +59,10 @@ def get_oldest_pending_project():
     try:
         supabase = get_supabase_client()
         
+        # Hľadaj projekty so statusom: pending, procesing alebo training (nie generated alebo podoris)
         response = supabase.table("projects") \
             .select("*") \
-            .neq("status", "Generated") \
+            .eq("status", "pending") \
             .lt("try", 3) \
             .order("created_at", desc=False) \
             .limit(1) \
@@ -49,10 +70,52 @@ def get_oldest_pending_project():
         
         if response.data and len(response.data) > 0:
             return response.data[0]
-        else:
-            return None
+        
+        # Ak nie je pending, hľadaj procesing
+        response = supabase.table("projects") \
+            .select("*") \
+            .eq("status", "procesing") \
+            .lt("try", 3) \
+            .order("created_at", desc=False) \
+            .limit(1) \
+            .execute()
+        
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        
+        # Ak nie je procesing, hľadaj training
+        response = supabase.table("projects") \
+            .select("*") \
+            .eq("status", "training") \
+            .lt("try", 3) \
+            .order("created_at", desc=False) \
+            .limit(1) \
+            .execute()
+        
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        
+        # Ak nie je procesing, hľadaj training
+        response = supabase.table("projects") \
+            .select("*") \
+            .eq("status", "Generated") \
+            .lt("try", 3) \
+            .order("created_at", desc=False) \
+            .limit(1) \
+            .execute()
+        
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        
+        return None
             
     except Exception as e:
+        print(f"❌ Chyba pri dotaze get_oldest_pending_project: {e}")
+        import traceback
+        traceback.print_exc()
         raise Exception(f"Chyba pri dotaze get_oldest_pending_project: {e}")
 
 
