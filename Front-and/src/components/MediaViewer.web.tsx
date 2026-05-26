@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useLayoutEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import * as apiClient from '../api/client';
 import { API_BASE_URL } from '../api/client';
@@ -26,7 +26,33 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
   const controlsRef = useRef<any>(null);
   const cameraRef = useRef<any>(null);
   const pointsMaterialRef = useRef<any>(null);
+  const settingsRef = useRef<any>({
+    centerX: 0,
+    centerY: 0,
+    centerZ: 0,
+    pixelSize: 0.5,
+    rotationAngle: 261,
+    distance: 10,
+    showCenter: true,
+    showDistance: true,
+  });
   
+  // Helper function to load settings from localStorage - DEFINED BEFORE useState
+  const loadSettingsForProject = (key: string, defaultValue: any) => {
+    try {
+      const settingsKey = `mediaViewer_settings_${projectId}`;
+      const saved = localStorage.getItem(settingsKey);
+      if (saved) {
+        const settings = JSON.parse(saved);
+        console.log('[MEDIA VIEWER] Loaded setting from localStorage:', key, '=', settings[key] ?? defaultValue);
+        return settings[key] ?? defaultValue;
+      }
+    } catch (err) {
+      console.error('[MEDIA VIEWER] Error loading setting:', key, err);
+    }
+    return defaultValue;
+  };
+
   const [media, setMedia] = useState<apiClient.ProjectMedia | null>(null);
   const [displayMode, setDisplayMode] = useState<DisplayMode>('none');
   const [loading, setLoading] = useState(true);
@@ -36,18 +62,145 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
     videos: Map<string, Blob>;
     models: Map<string, ArrayBuffer>;
   } | null>(null);
-  const [pixelSize, setPixelSize] = useState(0.5);
-  const [rotationAngle, setRotationAngle] = useState(261);
+  
+  // Load settings synchronously from localStorage using initializer functions
+  const [pixelSize, setPixelSize] = useState(() => {
+    try {
+      const settingsKey = `mediaViewer_settings_${projectId}`;
+      const saved = localStorage.getItem(settingsKey);
+      console.log('[MEDIA VIEWER INIT] pixelSize - localStorage key:', settingsKey, '- found:', !!saved);
+      if (saved) {
+        const settings = JSON.parse(saved);
+        console.log('[MEDIA VIEWER INIT] pixelSize loaded from localStorage:', settings.pixelSize);
+        return settings.pixelSize ?? 0.5;
+      }
+    } catch (err) {
+      console.error('[MEDIA VIEWER INIT] Error loading pixelSize:', err);
+    }
+    return 0.5;
+  });
+  
+  const [rotationAngle, setRotationAngle] = useState(() => {
+    try {
+      const settingsKey = `mediaViewer_settings_${projectId}`;
+      const saved = localStorage.getItem(settingsKey);
+      if (saved) {
+        const settings = JSON.parse(saved);
+        console.log('[MEDIA VIEWER INIT] rotationAngle loaded:', settings.rotationAngle);
+        return settings.rotationAngle ?? 261;
+      }
+    } catch (err) {
+      console.error('[MEDIA VIEWER INIT] Error loading rotationAngle:', err);
+    }
+    return 261;
+  });
+  
+  const [centerX, setCenterX] = useState(() => {
+    try {
+      const settingsKey = `mediaViewer_settings_${projectId}`;
+      const saved = localStorage.getItem(settingsKey);
+      if (saved) {
+        const settings = JSON.parse(saved);
+        console.log('[MEDIA VIEWER INIT] centerX loaded:', settings.centerX);
+        return settings.centerX ?? 0;
+      }
+    } catch (err) {
+      console.error('[MEDIA VIEWER INIT] Error loading centerX:', err);
+    }
+    return 0;
+  });
+  
+  const [centerY, setCenterY] = useState(() => {
+    try {
+      const settingsKey = `mediaViewer_settings_${projectId}`;
+      const saved = localStorage.getItem(settingsKey);
+      if (saved) {
+        const settings = JSON.parse(saved);
+        console.log('[MEDIA VIEWER INIT] centerY loaded:', settings.centerY);
+        return settings.centerY ?? 0;
+      }
+    } catch (err) {
+      console.error('[MEDIA VIEWER INIT] Error loading centerY:', err);
+    }
+    return 0;
+  });
+  
+  const [centerZ, setCenterZ] = useState(() => {
+    try {
+      const settingsKey = `mediaViewer_settings_${projectId}`;
+      const saved = localStorage.getItem(settingsKey);
+      if (saved) {
+        const settings = JSON.parse(saved);
+        console.log('[MEDIA VIEWER INIT] centerZ loaded:', settings.centerZ);
+        return settings.centerZ ?? 0;
+      }
+    } catch (err) {
+      console.error('[MEDIA VIEWER INIT] Error loading centerZ:', err);
+    }
+    return 0;
+  });
+  
+  const [maxDistance, setMaxDistance] = useState(() => {
+    try {
+      const settingsKey = `mediaViewer_settings_${projectId}`;
+      const saved = localStorage.getItem(settingsKey);
+      if (saved) {
+        const settings = JSON.parse(saved);
+        console.log('[MEDIA VIEWER INIT] distance loaded:', settings.distance);
+        return settings.distance ?? 10;
+      }
+    } catch (err) {
+      console.error('[MEDIA VIEWER INIT] Error loading distance:', err);
+    }
+    return 10;
+  });
+  
+  const [showCenter, setShowCenter] = useState(() => {
+    try {
+      const settingsKey = `mediaViewer_settings_${projectId}`;
+      const saved = localStorage.getItem(settingsKey);
+      if (saved) {
+        const settings = JSON.parse(saved);
+        console.log('[MEDIA VIEWER INIT] showCenter loaded:', settings.showCenter);
+        return settings.showCenter ?? true;
+      }
+    } catch (err) {
+      console.error('[MEDIA VIEWER INIT] Error loading showCenter:', err);
+    }
+    return true;
+  });
+  
+  const [showDistance, setShowDistance] = useState(() => {
+    try {
+      const settingsKey = `mediaViewer_settings_${projectId}`;
+      const saved = localStorage.getItem(settingsKey);
+      if (saved) {
+        const settings = JSON.parse(saved);
+        console.log('[MEDIA VIEWER INIT] showDistance loaded:', settings.showDistance);
+        return settings.showDistance ?? true;
+      }
+    } catch (err) {
+      console.error('[MEDIA VIEWER INIT] Error loading showDistance:', err);
+    }
+    return true;
+  });
+
   const modelGroupRef = useRef<any>(null);
   const [showControlsInfo, setShowControlsInfo] = useState(false);
   const infoDivRef = useRef<HTMLDivElement | null>(null);
-  const [centerX, setCenterX] = useState(0);
-  const [centerY, setCenterY] = useState(0);
-  const [centerZ, setCenterZ] = useState(0);
-  const [maxDistance, setMaxDistance] = useState(100);
-  const [maxDistanceLimit, setMaxDistanceLimit] = useState(100);
-  const [showCenter, setShowCenter] = useState(true);
-  const [filterDistanceActive, setFilterDistanceActive] = useState(true);
+  
+  // ⚠️ CRITICAL: Synchronize state to settingsRef SYNCHRONOUSLY on every render
+  // This ensures displayModel() always sees the latest values
+  settingsRef.current = {
+    centerX,
+    centerY,
+    centerZ,
+    pixelSize,
+    rotationAngle,
+    maxDistance,
+    showCenter,
+    showDistance,
+  };
   const centerSphereRef = useRef<any>(null);
   const pointsRef = useRef<any>(null);
   const pointsDataRef = useRef<{
@@ -57,47 +210,60 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
     material: THREE.Material;
   } | null>(null);
 
-  // Načítaj nastavenia z localStorage pri inicializácii
+  // Sledovanie zmien stavu - DEBUGGING
   useEffect(() => {
+    console.log('[MEDIA VIEWER STATE UPDATE] centerX changed to:', centerX);
+    settingsRef.current.centerX = centerX;
+  }, [centerX]);
+
+  useEffect(() => {
+    console.log('[MEDIA VIEWER STATE UPDATE] centerY changed to:', centerY);
+    settingsRef.current.centerY = centerY;
+  }, [centerY]);
+
+  useEffect(() => {
+    console.log('[MEDIA VIEWER STATE UPDATE] centerZ changed to:', centerZ);
+    settingsRef.current.centerZ = centerZ;
+  }, [centerZ]);
+
+  useEffect(() => {
+    console.log('[MEDIA VIEWER STATE UPDATE] pixelSize changed to:', pixelSize);
+    settingsRef.current.pixelSize = pixelSize;
+  }, [pixelSize]);
+
+  useEffect(() => {
+    console.log('[MEDIA VIEWER STATE UPDATE] rotationAngle changed to:', rotationAngle);
+    settingsRef.current.rotationAngle = rotationAngle;
+  }, [rotationAngle]);
+
+  useEffect(() => {
+    console.log('[MEDIA VIEWER STATE UPDATE] displayMode changed to:', displayMode);
+  }, [displayMode]);
+
+  // Reload settings from localStorage when projectId changes
+  useEffect(() => {
+    console.log('[MEDIA VIEWER] Loading settings for projectId:', projectId);
     const settingsKey = `mediaViewer_settings_${projectId}`;
-    const savedSettings = localStorage.getItem(settingsKey);
-    if (savedSettings) {
-      try {
-        const settings = JSON.parse(savedSettings);
-        console.log('[MEDIA VIEWER] Loaded settings from localStorage:', settings);
-        if (settings.pixelSize !== undefined) setPixelSize(settings.pixelSize);
-        if (settings.rotationAngle !== undefined) setRotationAngle(settings.rotationAngle);
-        if (settings.centerX !== undefined) setCenterX(settings.centerX);
-        if (settings.centerY !== undefined) setCenterY(settings.centerY);
-        if (settings.centerZ !== undefined) setCenterZ(settings.centerZ);
-        if (settings.maxDistance !== undefined) setMaxDistance(settings.maxDistance);
-        if (settings.showCenter !== undefined) setShowCenter(settings.showCenter);
-        if (settings.filterDistanceActive !== undefined) setFilterDistanceActive(settings.filterDistanceActive);
-      } catch (err) {
-        console.error('[MEDIA VIEWER] Error loading settings:', err);
+    try {
+      const saved = localStorage.getItem(settingsKey);
+      if (saved) {
+        const settings = JSON.parse(saved);
+        console.log('[MEDIA VIEWER] Loaded persisted settings:', settings);
+        
+        // Apply all loaded settings
+        setPixelSize(settings.pixelSize ?? 0.5);
+        setRotationAngle(settings.rotationAngle ?? 261);
+        setCenterX(settings.centerX ?? 0);
+        setCenterY(settings.centerY ?? 0);
+        setCenterZ(settings.centerZ ?? 0);
+        setMaxDistance(settings.distance ?? 10);
+        setShowCenter(settings.showCenter ?? true);
+        setShowDistance(settings.showDistance ?? true);
       }
+    } catch (err) {
+      console.error('[MEDIA VIEWER] Error loading settings:', err);
     }
-  }, [projectId]);
-
-  // Ulož nastavenia do localStorage keď sa zmenia
-  useEffect(() => {
-    const settingsKey = `mediaViewer_settings_${projectId}`;
-    const settings = {
-      pixelSize,
-      rotationAngle,
-      centerX,
-      centerY,
-      centerZ,
-      maxDistance,
-      showCenter,
-      filterDistanceActive,
-    };
-    localStorage.setItem(settingsKey, JSON.stringify(settings));
-    console.log('[MEDIA VIEWER] Saved settings to localStorage');
-  }, [projectId, pixelSize, rotationAngle, centerX, centerY, centerZ, maxDistance, showCenter, filterDistanceActive]);
-
-  // Načítaj všetky médiá (videá a modely) pri počiatočnom otvorení
-  useEffect(() => {
+    // Also load media
     loadAllMedia();
   }, [projectId]);
 
@@ -130,29 +296,50 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
     }
   }, [showCenter]);
 
-  // Update points based on maxDistance and filterDistanceActive
+  // ✨ Update center sphere position when centerX/Y/Z changes
   useEffect(() => {
-    if (!pointsRef.current || !pointsDataRef.current) return;
+    if (!centerSphereRef.current || !pointsDataRef.current?.transformData) {
+      return;
+    }
+
+    const { center, scale } = pointsDataRef.current.transformData;
     
-    const { scaledCentroid, posArray, colorArray, material } = pointsDataRef.current;
+    // Aplikuj rovnakú transformáciu ako geometria
+    const newScaledCentroid = {
+      x: (centerX - center.x) * scale,
+      y: (centerY - center.y) * scale,
+      z: (centerZ - center.z) * scale,
+    };
+
+    centerSphereRef.current.position.set(newScaledCentroid.x, newScaledCentroid.y, newScaledCentroid.z);
+    console.log('[MEDIA VIEWER] 🔴 Center sphere moved to:', newScaledCentroid);
+  }, [centerX, centerY, centerZ]);
+
+  // ✨ Live update geometry when maxDistance or showDistance changes
+  useEffect(() => {
+    if (!pointsRef.current || !pointsDataRef.current) {
+      console.log('[MEDIA VIEWER] Points not loaded yet, skipping distance filter update');
+      return;
+    }
+
+    const { scaledCentroid, posArray, colorArray } = pointsDataRef.current;
     
-    const finalPositions = [];
-    const finalColors = [];
-    
-    for (let i = 0; i < posArray.length; i += 3) {
-      if (!filterDistanceActive) {
-        // Show all points
-        finalPositions.push(posArray[i], posArray[i + 1], posArray[i + 2]);
-        if (colorArray) {
-          finalColors.push(colorArray[i], colorArray[i + 1], colorArray[i + 2]);
-        }
-      } else {
-        // Filter by distance
-        const dx = posArray[i] - centerX;
-        const dy = posArray[i + 1] - centerY;
-        const dz = posArray[i + 2] - centerZ;
+    console.log('[MEDIA VIEWER] ⏳ Updating display mode - showDistance:', showDistance);
+    const startTime = performance.now();
+
+    const finalPositions: number[] = [];
+    const finalColors: number[] = [];
+
+    if (showDistance) {
+      // ✅ Show ON: Filtrujem pixeli od stredu v danej distance
+      console.log('[MEDIA VIEWER] 🔍 Filter ON - showing pixels within distance:', maxDistance);
+      
+      for (let i = 0; i < posArray.length; i += 3) {
+        const dx = posArray[i] - scaledCentroid.x;
+        const dy = posArray[i + 1] - scaledCentroid.y;
+        const dz = posArray[i + 2] - scaledCentroid.z;
         const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        
+
         if (dist <= maxDistance) {
           finalPositions.push(posArray[i], posArray[i + 1], posArray[i + 2]);
           if (colorArray) {
@@ -160,27 +347,59 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
           }
         }
       }
+    } else {
+      // ✅ Show OFF: Zobrazím VŠETKY pixeli bez filtra
+      console.log('[MEDIA VIEWER] 📺 Filter OFF - showing ALL pixels');
+      
+      for (let i = 0; i < posArray.length; i += 3) {
+        finalPositions.push(posArray[i], posArray[i + 1], posArray[i + 2]);
+        if (colorArray) {
+          finalColors.push(colorArray[i], colorArray[i + 1], colorArray[i + 2]);
+        }
+      }
     }
-    
-    const finalGeometry = new THREE.BufferGeometry();
-    finalGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(finalPositions), 3));
-    if (finalColors.length > 0) {
-      finalGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(finalColors), 3));
-    }
-    
-    pointsRef.current.geometry.dispose();
-    pointsRef.current.geometry = finalGeometry;
-    
-    // Update center sphere position
-    if (centerSphereRef.current) {
-      centerSphereRef.current.position.set(centerX, centerY, centerZ);
-    }
-  }, [maxDistance, centerX, centerY, centerZ, filterDistanceActive]);
 
-  // Reset maxDistance when model changes
+    const newGeometry = new THREE.BufferGeometry();
+    newGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(finalPositions), 3));
+    
+    if (finalColors.length > 0) {
+      newGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(finalColors), 3));
+    }
+
+    pointsRef.current.geometry = newGeometry;
+
+    const endTime = performance.now();
+    console.log('[MEDIA VIEWER] ✅ Display updated:', {
+      visiblePoints: finalPositions.length / 3,
+      totalPoints: posArray.length / 3,
+      timeMs: (endTime - startTime).toFixed(2),
+      mode: showDistance ? 'FILTERED' : 'ALL',
+    });
+  }, [maxDistance, showDistance]);
+
+  // ⚠️ CRITICAL: Save all settings to localStorage whenever they change
   useEffect(() => {
-    setMaxDistance(maxDistanceLimit);
-  }, [selectedModelIndex]);
+    if (!projectId) return; // Don't save if projectId not set
+    
+    const settingsKey = `mediaViewer_settings_${projectId}`;
+    const settings = {
+      pixelSize,
+      rotationAngle,
+      centerX,
+      centerY,
+      centerZ,
+      distance: maxDistance,
+      showCenter,
+      showDistance,
+    };
+    
+    try {
+      localStorage.setItem(settingsKey, JSON.stringify(settings));
+      console.log('[MEDIA VIEWER] 💾 Settings persisted to localStorage:', settings);
+    } catch (err) {
+      console.error('[MEDIA VIEWER] Error saving settings:', err);
+    }
+  }, [projectId, pixelSize, rotationAngle, centerX, centerY, centerZ, maxDistance, showCenter, showDistance]);
 
   // Center position keyboard controls (I/K for X, J/L for Z, U/O for Y)
   useEffect(() => {
@@ -216,6 +435,21 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       window.removeEventListener('keydown', handleCenterKeyDown);
     };
   }, [displayMode]);
+
+  // Helper: Fetch with timeout
+  const fetchWithTimeout = async (url: string, timeoutMs: number = 30000) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      return res;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      throw err;
+    }
+  };
 
   const loadAllMedia = async () => {
     try {
@@ -264,26 +498,33 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
         const videoPromises = response.data.videos.map(async (video) => {
           try {
             const url = apiClient.getVideoUrl(projectId, video.filename, token);
-            console.log('[MEDIA VIEWER] Fetching video:', url);
-            const res = await fetch(url);
+            console.log('[MEDIA VIEWER] Fetching video:', video.filename, 'size:', video.size);
+            
+            // Fetch s timeout (60s pre videá)
+            const res = await fetchWithTimeout(url, 60000);
             
             if (!res.ok) {
-              console.error('[MEDIA VIEWER] Video fetch failed:', res.status, res.statusText);
+              console.error('[MEDIA VIEWER] ❌ Video fetch failed:', video.filename, res.status, res.statusText);
               return;
             }
             
             const blob = await res.blob();
-            console.log('[MEDIA VIEWER] Video blob created, size:', blob.size, 'type:', blob.type);
+            console.log('[MEDIA VIEWER] Video blob created, size:', blob.size);
             
             if (blob.size === 0) {
-              console.error('[MEDIA VIEWER] Video blob is empty!');
+              console.error('[MEDIA VIEWER] ❌ Video blob is empty:', video.filename);
               return;
             }
             
             cacheEntry.videos.set(video.filename, blob);
             console.log('[MEDIA VIEWER] ✅ Cached video:', video.filename);
           } catch (err) {
-            console.error('[MEDIA VIEWER] ❌ Error caching video:', video.filename, err);
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            if (errorMsg.includes('Abort')) {
+              console.error('[MEDIA VIEWER] ⏱️ Video download timeout:', video.filename);
+            } else {
+              console.error('[MEDIA VIEWER] ❌ Error caching video:', video.filename, '- Reason:', errorMsg);
+            }
           }
         });
         
@@ -291,12 +532,30 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
         const modelPromises = response.data.models.map(async (model) => {
           try {
             const url = apiClient.getModelUrl(projectId, model.filename, token);
-            const res = await fetch(url);
+            console.log('[MEDIA VIEWER] Fetching model:', model.filename, 'size:', model.size, 'URL:', url);
+            
+            // Fetch s timeout (30s pre malé, 90s pre veľké modely)
+            const timeoutMs = (model.size || 0) > 50000000 ? 90000 : 30000;
+            const res = await fetchWithTimeout(url, timeoutMs);
+            
+            if (!res.ok) {
+              console.error('[MEDIA VIEWER] ❌ Model fetch failed:', model.filename, res.status, res.statusText);
+              return;
+            }
+            
+            console.log('[MEDIA VIEWER] ⏳ Model downloaded, parsing:', model.filename);
             const buffer = await res.arrayBuffer();
+            
+            if (!buffer || buffer.byteLength === 0) {
+              console.error('[MEDIA VIEWER] ❌ Model buffer is empty:', model.filename);
+              return;
+            }
+            
             cacheEntry.models.set(model.filename, buffer);
-            console.log('[MEDIA VIEWER] Cached model:', model.filename);
+            console.log('[MEDIA VIEWER] ✅ Cached model:', model.filename, 'buffer size:', buffer.byteLength);
           } catch (err) {
-            console.error('[MEDIA VIEWER] Error caching model:', model.filename, err);
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            console.error('[MEDIA VIEWER] ❌ Error loading model:', model.filename, '- Reason:', errorMsg);
           }
         });
         
@@ -709,22 +968,37 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       const centerPointY = sumCenterY / (filteredPositions.length / 3);
       const centerPointZ = sumCenterZ / (filteredPositions.length / 3);
       
-      // Ulož centroid do state
-      setCenterX(centerPointX);
-      setCenterY(centerPointY);
-      setCenterZ(centerPointZ);
+      // Ulož centroid do state ALIA ak nie sú nastavené custom values (z localStorage)
+      // Ak sú centerX, centerY, centerZ všetky 0, znamená to že sú default, počítaj nové
+      const isUsingDefaultCenter = settingsRef.current.centerX === 0 && settingsRef.current.centerY === 0 && settingsRef.current.centerZ === 0;
+      if (isUsingDefaultCenter) {
+        console.log('[MEDIA VIEWER] Computing default centroid:', { centerPointX, centerPointY, centerPointZ });
+        setCenterX(centerPointX);
+        setCenterY(centerPointY);
+        setCenterZ(centerPointZ);
+      } else {
+        console.log('[MEDIA VIEWER] ✅ Using loaded center values from localStorage (from settingsRef), skipping auto-calculation:', { 
+          centerX: settingsRef.current.centerX, 
+          centerY: settingsRef.current.centerY, 
+          centerZ: settingsRef.current.centerZ 
+        });
+      }
       
       // Vypočítaj maximálnu vzdialenosť od stredu
       let maxDist = 0;
+      const centerForDistance = isUsingDefaultCenter ? 
+        { x: centerPointX, y: centerPointY, z: centerPointZ } : 
+        { x: settingsRef.current.centerX, y: settingsRef.current.centerY, z: settingsRef.current.centerZ };
+      
       for (let i = 0; i < filteredPositions.length; i += 3) {
-        const dx = filteredPositions[i] - centerPointX;
-        const dy = filteredPositions[i + 1] - centerPointY;
-        const dz = filteredPositions[i + 2] - centerPointZ;
+        const dx = filteredPositions[i] - centerForDistance.x;
+        const dy = filteredPositions[i + 1] - centerForDistance.y;
+        const dz = filteredPositions[i + 2] - centerForDistance.z;
         const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (dist > maxDist) maxDist = dist;
       }
-      setMaxDistanceLimit(maxDist);
-      setMaxDistance(maxDist);
+      
+      console.log('[MEDIA VIEWER] Max distance in model:', maxDist);
       
       const newGeometry = new THREE.BufferGeometry();
       newGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(filteredPositions), 3));
@@ -737,7 +1011,10 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       newGeometry.boundingBox!.getCenter(center);
       
       // Uložiť centroid pred transláciou pre neskôr filter
-      const centroidBeforeTranslate = { x: centerPointX, y: centerPointY, z: centerPointZ };
+      // Ak máme loadované custom centroid, použij ten, inak auto-vypočítaný
+      const centroidBeforeTranslate = isUsingDefaultCenter ? 
+        { x: centerPointX, y: centerPointY, z: centerPointZ } :
+        { x: settingsRef.current.centerX, y: settingsRef.current.centerY, z: settingsRef.current.centerZ };
       
       newGeometry.translate(-center.x, -center.y, -center.z);
       
@@ -752,6 +1029,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
         (centroidBeforeTranslate.y - center.y) * scale,
         (centroidBeforeTranslate.z - center.z) * scale
       );
+      console.log('[MEDIA VIEWER] scaledCentroid:', scaledCentroid, 'isUsingDefaultCenter:', isUsingDefaultCenter);
       
       const positionAttr = newGeometry.getAttribute('position') as THREE.BufferAttribute;
       const posArray = Array.from(positionAttr.array as Float32Array);
@@ -790,6 +1068,10 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
         posArray: new Float32Array(posArray),
         colorArray: colorArray ? new Float32Array(colorArray) : null,
         material: material,
+        transformData: {
+          center: { x: center.x, y: center.y, z: center.z },  // Pre výpočet scaledCentroid z centerX/Y/Z
+          scale: scale,  // Pre výpočet scaledCentroid z centerX/Y/Z
+        },
       };
       
       // Vytvoriť skupinu pre model aby Q/E mohli otáčať
@@ -797,16 +1079,19 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       modelGroup.add(points);
       
       // Vytvor sféru pre centroid
-      const sphereGeometry = new THREE.SphereGeometry(0.5, 16, 16);
-      const sphereMaterial = new THREE.MeshStandardMaterial({ 
+      const sphereGeometry = new THREE.SphereGeometry(1.5, 32, 32);  // Väčší radius + viac segmentov
+      const sphereMaterial = new THREE.MeshBasicMaterial({ 
         color: 0xFF0000, 
-        emissive: 0xFF6666,
-        emissiveIntensity: 0.5
+        emissive: 0xFF0000,
+        wireframe: false,
+        transparent: true,
+        opacity: 0.9
       });
       const centerSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
       centerSphere.position.copy(scaledCentroid);
       centerSphere.visible = showCenter;
       centerSphereRef.current = centerSphere;
+      console.log('[MEDIA VIEWER] ✅ Center sphere created at position:', scaledCentroid, 'visible:', showCenter);
       modelGroup.add(centerSphere);
       
       scene.add(modelGroup);
@@ -815,12 +1100,20 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       modelGroupRef.current = modelGroup;
       (window as any).modelGroup = modelGroup;
       
-      controls.target.set(0, 0, 0);
+      // ✨ Nastav kameru aby sa pozerala na stred (scaledCentroid) a rotovala okolo neho
+      controls.target.set(scaledCentroid.x, scaledCentroid.y, scaledCentroid.z);
       controls.autoRotateSpeed = 1.5;
       controls.dampingFactor = 0.02;
-      // Kamera na isometrickom uhle - dopredu a hore
+      controls.autoRotate = true;  // Automatická rotácia
+      
+      // Kamera na izometrickom uhle od stredu
       const camDist = maxDim * 1.2;
-      camera.position.set(camDist * 0.7, camDist * 0.7, camDist * 0.7);
+      camera.position.set(
+        scaledCentroid.x + camDist * 0.7,
+        scaledCentroid.y + camDist * 0.7,
+        scaledCentroid.z + camDist * 0.7
+      );
+      console.log('[MEDIA VIEWER] 📷 Camera setup - target:', scaledCentroid, 'position:', camera.position);
       controls.update();
       loadingDiv.style.display = 'none';
       
@@ -1297,46 +1590,42 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                   color: '#333',
                   whiteSpace: 'nowrap',
                 }}>
-                  📏 Vzdialenosť:
+                  📏 Distance:
                 </label>
                 <input
                   type="number"
                   min="0"
-                  max={maxDistanceLimit}
                   step="0.1"
                   value={maxDistance.toFixed(2)}
                   onChange={(e) => {
                     const val = parseFloat(e.target.value);
-                    if (!isNaN(val) && val >= 0 && val <= maxDistanceLimit) {
+                    if (!isNaN(val) && val >= 0) {
                       setMaxDistance(val);
                     }
                   }}
-                  disabled={!filterDistanceActive}
                   style={{
                     flex: 1,
                     padding: '4px 6px',
                     fontSize: '12px',
                     borderRadius: '4px',
                     border: '1px solid #ddd',
-                    opacity: filterDistanceActive ? 1 : 0.5,
-                    cursor: filterDistanceActive ? 'text' : 'not-allowed',
                   }}
                 />
                 <button
-                  onClick={() => setFilterDistanceActive(!filterDistanceActive)}
+                  onClick={() => setShowDistance(!showDistance)}
                   style={{
                     padding: '4px 10px',
                     fontSize: '11px',
                     fontWeight: '600',
-                    backgroundColor: filterDistanceActive ? '#4CAF50' : '#ccc',
-                    color: filterDistanceActive ? 'white' : '#666',
+                    backgroundColor: showDistance ? '#4CAF50' : '#ccc',
+                    color: showDistance ? 'white' : '#666',
                     border: 'none',
                     borderRadius: '4px',
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {filterDistanceActive ? '✓ AKT' : '✗ OFF'}
+                  {showDistance ? '✓ Show' : '✗ Hide'}
                 </button>
               </div>
             </div>

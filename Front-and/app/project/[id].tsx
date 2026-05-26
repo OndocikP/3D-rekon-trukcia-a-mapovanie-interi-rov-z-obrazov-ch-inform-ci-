@@ -297,7 +297,24 @@ export default function ProjectDetailScreen() {
             <AppButton
               icon="home"
               title="Main"
-              onPress={() => router.replace('/main')}
+              onPress={() => {
+                // Ulož settings pred navigáciou
+                const settingsKey = `mediaViewer_settings_${id}`;
+                try {
+                  const settings = localStorage.getItem(settingsKey);
+                  if (settings) {
+                    console.log('[PROJECT] ✅ Settings saved and ready to load on next visit');
+                    Alert.alert('✅ Úspech', 'Nastavenia 3D modelu boli uložené');
+                  } else {
+                    console.log('[PROJECT] ℹ️ No settings to save');
+                  }
+                } catch (err) {
+                  console.error('[PROJECT] Error accessing settings:', err);
+                }
+                setTimeout(() => {
+                  router.replace('/main');
+                }, 500);
+              }}
               style={{ flex: 0.5, minWidth: 45 }}
             />
           </View>
