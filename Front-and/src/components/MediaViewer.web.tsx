@@ -185,6 +185,49 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
     return true;
   });
 
+  // Camera rotation angles (degrees) - for manual camera positioning
+  const [cameraRotationX, setCameraRotationX] = useState(() => {
+    try {
+      const settingsKey = `mediaViewer_settings_${projectId}`;
+      const saved = localStorage.getItem(settingsKey);
+      if (saved) {
+        const settings = JSON.parse(saved);
+        return settings.cameraRotationX ?? 0;
+      }
+    } catch (err) {
+      console.error('[MEDIA VIEWER INIT] Error loading cameraRotationX:', err);
+    }
+    return 0;
+  });
+
+  const [cameraRotationY, setCameraRotationY] = useState(() => {
+    try {
+      const settingsKey = `mediaViewer_settings_${projectId}`;
+      const saved = localStorage.getItem(settingsKey);
+      if (saved) {
+        const settings = JSON.parse(saved);
+        return settings.cameraRotationY ?? 0;
+      }
+    } catch (err) {
+      console.error('[MEDIA VIEWER INIT] Error loading cameraRotationY:', err);
+    }
+    return 0;
+  });
+
+  const [cameraRotationZ, setCameraRotationZ] = useState(() => {
+    try {
+      const settingsKey = `mediaViewer_settings_${projectId}`;
+      const saved = localStorage.getItem(settingsKey);
+      if (saved) {
+        const settings = JSON.parse(saved);
+        return settings.cameraRotationZ ?? 0;
+      }
+    } catch (err) {
+      console.error('[MEDIA VIEWER INIT] Error loading cameraRotationZ:', err);
+    }
+    return 0;
+  });
+
   const modelGroupRef = useRef<any>(null);
   const [showControlsInfo, setShowControlsInfo] = useState(false);
   const infoDivRef = useRef<HTMLDivElement | null>(null);
@@ -322,9 +365,22 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       return;
     }
 
-    const { scaledCentroid, posArray, colorArray } = pointsDataRef.current;
+    const { posArray, colorArray, transformData } = pointsDataRef.current;
     
-    console.log('[MEDIA VIEWER] ⏳ Updating display mode - showDistance:', showDistance);
+    if (!transformData) {
+      console.log('[MEDIA VIEWER] Transform data not available');
+      return;
+    }
+
+    // ✅ Recalculate scaledCentroid based on current centerX/Y/Z
+    const { center, scale } = transformData;
+    const currentScaledCentroid = {
+      x: (centerX - center.x) * scale,
+      y: (centerY - center.y) * scale,
+      z: (centerZ - center.z) * scale,
+    };
+    
+    console.log('[MEDIA VIEWER] ⏳ Updating display mode - showDistance:', showDistance, 'with centroid:', currentScaledCentroid);
     const startTime = performance.now();
 
     const finalPositions: number[] = [];
@@ -335,9 +391,9 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       console.log('[MEDIA VIEWER] 🔍 Filter ON - showing pixels within distance:', maxDistance);
       
       for (let i = 0; i < posArray.length; i += 3) {
-        const dx = posArray[i] - scaledCentroid.x;
-        const dy = posArray[i + 1] - scaledCentroid.y;
-        const dz = posArray[i + 2] - scaledCentroid.z;
+        const dx = posArray[i] - currentScaledCentroid.x;
+        const dy = posArray[i + 1] - currentScaledCentroid.y;
+        const dz = posArray[i + 2] - currentScaledCentroid.z;
         const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
         if (dist <= maxDistance) {
@@ -375,7 +431,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       timeMs: (endTime - startTime).toFixed(2),
       mode: showDistance ? 'FILTERED' : 'ALL',
     });
-  }, [maxDistance, showDistance]);
+  }, [maxDistance, showDistance, centerX, centerY, centerZ]);
 
   // ⚠️ CRITICAL: Save all settings to localStorage whenever they change
   useEffect(() => {
@@ -736,14 +792,15 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
     infoDiv.style.display = 'none';
     infoDiv.innerHTML = `
       <div style="background: rgba(0, 0, 0, 0.5); padding: 8px 12px; border-radius: 4px; line-height: 1.6;">
-        <strong>Ovládanie:</strong><br/>
-        <strong>Q</strong> / <strong>E</strong> - Kamera vľavo/vpravo<br/>
-        <strong>X</strong> / <strong>Z</strong> / <strong>Y</strong> - Rotovať osi<br/>
-        <strong>SPACE</strong> - Pause/Resume orbit<br/>
-        <strong>I</strong> / <strong>K</strong> - Stred X+/-<br/>
-        <strong>J</strong> / <strong>L</strong> - Stred Z+/-<br/>
-        <strong>U</strong> / <strong>O</strong> - Stred Y+/-<br/>
-        <strong>Myš</strong> - Drag = Otáčanie, Scroll = Zoom
+        <strong>🖱️ Mouse Controls:</strong><br/>
+        <strong>Drag</strong> - Rotate view around center<br/>
+        <strong>Scroll</strong> - Zoom in/out<br/>
+        <strong>Right Click + Drag</strong> - Pan view<br/>
+        <br/>
+        <strong>Center Position:</strong><br/>
+        <strong>I</strong> / <strong>K</strong> - Center X+/-<br/>
+        <strong>J</strong> / <strong>L</strong> - Center Z+/-<br/>
+        <strong>U</strong> / <strong>O</strong> - Center Y+/-
       </div>
     `;
     infoDivRef.current = infoDiv;
@@ -1104,7 +1161,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       controls.target.set(scaledCentroid.x, scaledCentroid.y, scaledCentroid.z);
       controls.autoRotateSpeed = 1.5;
       controls.dampingFactor = 0.02;
-      controls.autoRotate = true;  // Automatická rotácia
+      controls.autoRotate = false;  // Vypnúť - budeme używať custom animation na základe Camera Rotation
       
       // Kamera na izometrickom uhle od stredu
       const camDist = maxDim * 1.2;
@@ -1117,6 +1174,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       controls.update();
       loadingDiv.style.display = 'none';
       
+      // Simple animation loop with mouse controls
       const animate = () => {
         requestAnimationFrame(animate);
         controls.update();
@@ -1136,55 +1194,19 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       renderer.setSize(w, h);
     };
     
-    // Keyboard controls: Q/E pre rotáciu vľavo/vpravo, X/Z/Y pre otáčanie osí, Space para pause/resume
+    // Keyboard controls for center position adjustment
     const handleKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
       
-      if (key === 'x' || key === 'z' || key === 'y') {
-        // Otáčať OS (okolo ktorej sa pohybuje kamera)
-        const target = controls.target;
-        const delta = camera.position.clone().sub(target);
-        const rotAmount = 0.1;  // 0.1 radiáns
-        
-        if (key === 'x') {
-          // Rotovať okolo X osi
-          const axis = new THREE.Vector3(1, 0, 0);
-          delta.applyAxisAngle(axis, rotAmount);
-        } else if (key === 'z') {
-          // Rotovať okolo Z osi
-          const axis = new THREE.Vector3(0, 0, 1);
-          delta.applyAxisAngle(axis, rotAmount);
-        } else if (key === 'y') {
-          // Rotovať okolo Y osi
-          const axis = new THREE.Vector3(0, 1, 0);
-          delta.applyAxisAngle(axis, rotAmount);
-        }
-        
-        camera.position.copy(target.clone().add(delta));
-        controls.update();
-      } else if (key === 'q' || key === 'e') {
-        // Rotovať KAMERU doľava/doprava okolo modelu
-        const target = controls.target;
-        const delta = camera.position.clone().sub(target);
-        let phi = Math.atan2(delta.z, delta.x);  // Horizontálny uhol
-        const theta = Math.acos(delta.y / delta.length());  // Vertikálny uhol
-        const radius = delta.length();
-        
-        const rotSpeed = 0.05;
-        if (key === 'q') phi += rotSpeed;      // Q = kamera vľavo
-        if (key === 'e') phi -= rotSpeed;      // E = kamera vpravo
-        
-        // Vypočítaj novú pozíciu kamery
-        camera.position.x = target.x + radius * Math.sin(theta) * Math.cos(phi);
-        camera.position.y = target.y + radius * Math.cos(theta);
-        camera.position.z = target.z + radius * Math.sin(theta) * Math.sin(phi);
-        
-        controls.update();
-      } else if (e.code === 'Space') {
-        // Pause/Resume orbit
-        e.preventDefault();
-        controls.autoRotate = !controls.autoRotate;
-        console.log('[3D VIEWER] AutoRotate:', controls.autoRotate ? 'ON' : 'OFF');
+      if (key === 'i' || key === 'k' || key === 'j' || key === 'l' || key === 'u' || key === 'o') {
+        // Center position adjustment via keyboard
+        const step = 0.1;
+        if (key === 'i') setCenterX((prev: number) => prev + step);
+        if (key === 'k') setCenterX((prev: number) => prev - step);
+        if (key === 'j') setCenterZ((prev: number) => prev - step);
+        if (key === 'l') setCenterZ((prev: number) => prev + step);
+        if (key === 'u') setCenterY((prev: number) => prev + step);
+        if (key === 'o') setCenterY((prev: number) => prev - step);
       }
     };
     
@@ -1525,7 +1547,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                 fontWeight: '600',
                 color: '#333',
               }}>
-                ⊙ Stred (X, Y, Z):
+                ⊙ Center (X, Y, Z):
               </label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
