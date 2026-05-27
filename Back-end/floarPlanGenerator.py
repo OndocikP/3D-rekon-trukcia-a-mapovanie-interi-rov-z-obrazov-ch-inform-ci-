@@ -362,19 +362,16 @@ def generate_floor_plan_views(project_id, user_id, center, max_distance):
     print(f"   📍 Centrum: ({center[0]:.2f}, {center[1]:.2f}, {center[2]:.2f})")
     print(f"   📏 Max vzdialenosť: {max_distance}m\n")
     
-    # Nájdi cestu k point cloud súboru
+    # Nájdi cestu k point cloud súboru - EXPLICITNE z 3Dmodel priečinka
     project_dir = Path(__file__).parent / "projects" / user_id / project_id / "3Dmodel"
     ply_file = project_dir / "point_cloud.ply"
     
+    print(f"   🔍 Hľadám point_cloud.ply v: {project_dir}")
+    print(f"   📄 Úplná cesta: {ply_file}")
+    print(f"   ✓ Existuje: {ply_file.exists()}\n")
+    
     if not ply_file.exists():
-        # Skúš iné možné umiestnenia
-        project_dir_alt = Path(__file__).parent / "projects" / project_id
-        ply_file_alt = project_dir_alt / "3Dmodel" / "point_cloud.ply"
-        
-        if ply_file_alt.exists():
-            ply_file = ply_file_alt
-        else:
-            raise FileNotFoundError(f"Point cloud not found at {ply_file} or {ply_file_alt}")
+        raise FileNotFoundError(f"❌ Point cloud NOT FOUND!\n   Očakávaná cesta: {ply_file}\n   Uprav parametre project_id a user_id!")
     
     # Načítaj point cloud
     points, colors = load_point_cloud(str(ply_file))
@@ -399,18 +396,11 @@ def generate_floor_plan_views(project_id, user_id, center, max_distance):
         ('back', 'Back (Pohľad zozadu)')
     ]
     
-    # Ak máme veľa bodov (>100k), vzorkuj len podmnožinu pre zobrazenie
+    # ŽIADNE vzorkovanie - použij VŠETKY body pre maximálnu kvalitu!
     num_points = len(points_filtered)
-    if num_points > 100000:
-        # Vzorkuj každý N-tý bod aby boli krúžky väčšie a jasnejšie
-        sample_rate = max(1, num_points // 50000)  # Cieľ: ~50k bodov
-        sample_indices = np.arange(0, num_points, sample_rate)
-        points_sample = points_filtered[sample_indices]
-        colors_sample = colors_filtered[sample_indices]
-        print(f"   📊 Vzorkovanie: {len(points_sample):,} z {num_points:,} bodov (każý {sample_rate}. bod)")
-    else:
-        points_sample = points_filtered
-        colors_sample = colors_filtered
+    points_sample = points_filtered
+    colors_sample = colors_filtered
+    print(f"   📊 Všetky body bez vzorkovania: {num_points:,} bodov ✅")
     
     results = {}
     
@@ -424,7 +414,7 @@ def generate_floor_plan_views(project_id, user_id, center, max_distance):
                 colors_sample,
                 direction,
                 center,
-                camera_distance=2,  # Kamera 10 jednotiek od centra - ešte bližšie
+                camera_distance=1,  # Kamera 10 jednotiek od centra - ešte bližšie
                 image_size=1024, 
                 fov=90
             )
