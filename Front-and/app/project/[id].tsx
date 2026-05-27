@@ -23,6 +23,7 @@ export default function ProjectDetailScreen() {
   const [project, setProject] = useState<apiClient.Project | null>(null);
   const [loadingProject, setLoadingProject] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [generatingFloorPlan, setGeneratingFloorPlan] = useState(false);
 
   useEffect(() => {
     loadProject();
@@ -170,6 +171,72 @@ export default function ProjectDetailScreen() {
     }
   };
 
+  const handleGenerateFloorPlan = async () => {
+    if (!id || !token || !user?.id) {
+      Alert.alert('Chyba', 'Project ID, user ID alebo token chýba');
+      return;
+    }
+
+    try {
+      setGeneratingFloorPlan(true);
+      console.log(`🎬 Začínam generovanie floor plánu...`);
+      console.log(`   Project ID: ${id}`);
+      console.log(`   User ID: ${user.id}`);
+      
+      // Ziskaj aktuálne settings z localStorage ak existujú
+      const settingsKey = `mediaViewer_settings_${id}`;
+      let centerX = 0, centerY = 0, centerZ = 0, maxDistance = 100;
+      
+      try {
+        const savedSettings = localStorage.getItem(settingsKey);
+        if (savedSettings) {
+          const settings = JSON.parse(savedSettings);
+          centerX = settings.centerX || 0;
+          centerY = settings.centerY || 0;
+          centerZ = settings.centerZ || 0;
+          maxDistance = settings.maxDistance || 100;
+          console.log(`📍 Načítané settings zo localStorage:`, settings);
+        }
+      } catch (err) {
+        console.warn('⚠️  Nepodarilo sa načítať settings:', err);
+      }
+      
+      // Pošli request na backend
+      const url = new URL(`${API_BASE_URL}/api/projects/${id}/generate-floor-plan`);
+      url.searchParams.append('user_id', user.id);
+      url.searchParams.append('project_name', projectName);
+      url.searchParams.append('center_x', centerX.toString());
+      url.searchParams.append('center_y', centerY.toString());
+      url.searchParams.append('center_z', centerZ.toString());
+      url.searchParams.append('max_distance', maxDistance.toString());
+
+      console.log(`🌐 POST: ${url.toString()}`);
+
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          'Authorization': token,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.detail || `HTTP ${response.status}`);
+      }
+
+      console.log(`✅ Floor plan generated:`, result);
+      Alert.alert('✅ Úspech', 'Floor plán bol vygenerovaný! Pozrite si terminál pre výstup.');
+      
+    } catch (error) {
+      console.error('❌ Floor plan error:', error);
+      Alert.alert('Chyba', error instanceof Error ? error.message : 'Nepodarilo sa vygenerovať floor plán');
+    } finally {
+      setGeneratingFloorPlan(false);
+    }
+  };
+
   const imageStyle = isWeb
     ? { width: Math.min(screenWidth * 0.5, 500), height: Math.min(screenWidth * 0.5, 500) }
     : { width: screenWidth - layout.padding * 2, height: (screenWidth - layout.padding * 2) * 0.75 };
@@ -293,6 +360,14 @@ export default function ProjectDetailScreen() {
               disabled={downloading || !media?.has_media}
               onPress={handleDownload}
               style={{ flex: 0.6, minWidth: 65 }}
+            />
+            <AppButton
+              icon="image"
+              title="Floor Plan"
+              variant="secondary"
+              disabled={generatingFloorPlan || !media?.has_media}
+              onPress={handleGenerateFloorPlan}
+              style={{ flex: 0.7, minWidth: 75 }}
             />
             <AppButton
               icon="home"

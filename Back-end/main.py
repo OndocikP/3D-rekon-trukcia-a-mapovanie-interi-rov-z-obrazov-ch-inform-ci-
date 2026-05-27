@@ -904,6 +904,54 @@ async def get_project_media_file(project_id: str, media_type: str, filename: str
         print(f"❌ Error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
+
+@app.get("/api/projects/{project_id}/viewer/ply")
+async def get_ply_for_viewer(project_id: str):
+    """Stiahni PLY súbor pre 3D viewer (camera_viewer.html)"""
+    try:
+        print(f"\n🎯 GET PLY FOR VIEWER ENDPOINT")
+        print(f"   project_id: {project_id}")
+        
+        # Nájsť PLY súbor
+        projects_path = os.getenv('PROJECTS_PATH', Path(__file__).parent / 'routers' / 'projects')
+        projects_root = Path(projects_path)
+        
+        ply_file = None
+        
+        if projects_root.exists():
+            for user_dir in projects_root.iterdir():
+                if user_dir.is_dir():
+                    ply_dir = user_dir / project_id / '3Dmodel'
+                    if ply_dir.exists():
+                        # Hľadaj najväčší PLY súbor
+                        ply_files = list(ply_dir.glob('*.ply'))
+                        if ply_files:
+                            ply_file = max(ply_files, key=lambda p: p.stat().st_size)
+                            break
+        
+        if not ply_file or not ply_file.exists():
+            print(f"❌ PLY file not found for project {project_id}")
+            raise HTTPException(status_code=404, detail="PLY file not found")
+        
+        file_size = ply_file.stat().st_size
+        print(f"✅ PLY file found: {ply_file.name} ({file_size / 1e6:.1f} MB)")
+        
+        return FileResponse(
+            ply_file,
+            media_type="application/octet-stream",
+            headers={
+                "Content-Disposition": f"inline; filename={ply_file.name}",
+                "Content-Length": str(file_size),
+                "Cache-Control": "public, max-age=3600"
+            }
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
 # ============================================
 # 3D MODEL GENERATION
 # ============================================
@@ -1049,6 +1097,107 @@ async def generate_all_3d_models(
         raise
     except Exception as e:
         print(f"❌ Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================
+# FLOOR PLAN GENERATION
+# ============================================
+
+@app.post("/api/projects/{project_id}/generate-floor-plan")
+async def generate_floor_plan(
+    project_id: str,
+    user_id: str = None,
+    center_x: float = None,
+    center_y: float = None,
+    center_z: float = None,
+    max_distance: float = None,
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Generovanie floor plánu z 3D modelu
+    - Spustí floarPlanGenerator.py
+    - Posiela všetky údaje ako JSON
+    """
+    try:
+        print(f"\n" + "="*70)
+        print(f"🎬 GENERATE FLOOR PLAN ENDPOINT")
+        print(f"="*70)
+        print(f"   📌 Project ID: {project_id}")
+        print(f"   👤 User ID: {user_id}")
+        print(f"    Center: ({center_x}, {center_y}, {center_z})")
+        print(f"   📏 Max Distance: {max_distance}\n")
+        
+        if not authorization:
+            raise HTTPException(status_code=401, detail="No token provided")
+        
+        # Vytvor JSON s všetkými údajmi
+        project_data = {
+            "project_id": project_id,
+            "user_id": user_id,
+            "center_x": center_x,
+            "center_y": center_y,
+            "center_z": center_z,
+            "max_distance": max_distance
+        }
+        
+        # Spustí floarPlanGenerator.py v background procese
+        import subprocess
+        import json as json_module
+        
+        backend_dir = Path(__file__).parent
+        generator_script = backend_dir / "floarPlanGenerator.py"
+        
+        if not generator_script.exists():
+            raise FileNotFoundError(f"floarPlanGenerator.py not found at {generator_script}")
+        
+        print(f"🔄 Spúšťam floor plan generator...")
+        print(f"   📄 Script: {generator_script}\n")
+        
+        # Pošli JSON ako argument
+        json_arg = json_module.dumps(project_data)
+        
+        # Nastav environment pre UTF-8
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+        
+        # Použi sys.executable aby sme spustili ten istý Python
+        import sys
+        
+        process = subprocess.Popen(
+            [sys.executable, str(generator_script), json_arg],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding='utf-8',
+            errors='replace',  # Replace invalid characters
+            env=env
+        )
+        
+        stdout, stderr = process.communicate()
+        
+        print(f"--- GENERATOR OUTPUT ---")
+        if stdout:
+            print(stdout)
+        if stderr:
+            print(f"STDERR: {stderr}")
+        print(f"--- END OUTPUT ---\n")
+        
+        if process.returncode != 0:
+            raise Exception(f"Generator failed with code {process.returncode}")
+        
+        print(f"✅ Floor plan generation completed!\n")
+        
+        return {
+            "status": "success",
+            "message": "Floor plan generated successfully",
+            "project_id": project_id,
+            "output": stdout
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error: {e}\n")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================
