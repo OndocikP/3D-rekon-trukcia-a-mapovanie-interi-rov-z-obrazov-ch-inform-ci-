@@ -1163,14 +1163,25 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
       controls.dampingFactor = 0.02;
       controls.autoRotate = false;  // Vypnúť - budeme używať custom animation na základe Camera Rotation
       
-      // Kamera na izometrickom uhle od stredu
-      const camDist = maxDim * 1.2;
-      camera.position.set(
-        scaledCentroid.x + camDist * 0.7,
-        scaledCentroid.y + camDist * 0.7,
-        scaledCentroid.z + camDist * 0.7
-      );
-      console.log('[MEDIA VIEWER] 📷 Camera setup - target:', scaledCentroid, 'position:', camera.position);
+      // 🎥 Kamera - ak je showDistance zapnutý, pozicionuj na Distance * 2 od Center, inak izometricky
+      if (showDistance) {
+        // Kamera priamo nad centrom vo vzdialenosti Distance * 2
+        camera.position.set(
+          scaledCentroid.x,
+          scaledCentroid.y,
+          scaledCentroid.z + maxDistance * 2
+        );
+        console.log('[MEDIA VIEWER] 📷 Camera setup (showDistance=true) - target:', scaledCentroid, 'distance:', maxDistance * 2, 'position:', camera.position);
+      } else {
+        // Kamera na izometrickom uhle od stredu
+        const camDist = maxDim * 1.2;
+        camera.position.set(
+          scaledCentroid.x + camDist * 0.7,
+          scaledCentroid.y + camDist * 0.7,
+          scaledCentroid.z + camDist * 0.7
+        );
+        console.log('[MEDIA VIEWER] 📷 Camera setup (isometric) - target:', scaledCentroid, 'position:', camera.position);
+      }
       controls.update();
       loadingDiv.style.display = 'none';
       
@@ -1323,6 +1334,48 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
             </div>
           )}
 
+          {/* Model Buttons - NOW AT TOP */}
+          {hasModels && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '12px', borderBottom: '1px solid #ddd' }}>
+              <button
+                onClick={() => setDisplayMode('model')}
+                style={{
+                  padding: '8px 12px',
+                  backgroundColor: displayMode === 'model' ? '#4CAF50' : '#ddd',
+                  color: displayMode === 'model' ? 'white' : 'black',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  width: '100%',
+                }}
+              >
+                🧊 Model PLY ({media.models.length})
+              </button>
+              
+              {media.models.length > 1 && displayMode === 'model' && (
+                <select
+                  value={selectedModelIndex}
+                  onChange={(e) => setSelectedModelIndex(parseInt(e.target.value))}
+                  style={{
+                    padding: '6px 10px',
+                    fontSize: '12px',
+                    borderRadius: '4px',
+                    border: '1px solid #ddd',
+                    width: '100%',
+                  }}
+                >
+                  {media.models.map((model, idx) => (
+                    <option key={idx} value={idx}>
+                      {model.filename}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
           {/* Pixel Size Control */}
           {displayMode === 'model' && hasModels && (
             <div style={{
@@ -1388,7 +1441,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                 fontWeight: '600',
                 color: '#333',
               }}>
-                🔄 Rotácia X:
+                🔄 Rotation X:
               </label>
               <input
                 type="range"
@@ -1488,48 +1541,6 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                   0°
                 </button>
               </div>
-            </div>
-          )}
-
-          {/* Model Buttons */}
-          {hasModels && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '12px', borderBottom: '1px solid #ddd' }}>
-              <button
-                onClick={() => setDisplayMode('model')}
-                style={{
-                  padding: '8px 12px',
-                  backgroundColor: displayMode === 'model' ? '#4CAF50' : '#ddd',
-                  color: displayMode === 'model' ? 'white' : 'black',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  width: '100%',
-                }}
-              >
-                🧊 Model PLY ({media.models.length})
-              </button>
-              
-              {media.models.length > 1 && displayMode === 'model' && (
-                <select
-                  value={selectedModelIndex}
-                  onChange={(e) => setSelectedModelIndex(parseInt(e.target.value))}
-                  style={{
-                    padding: '6px 10px',
-                    fontSize: '12px',
-                    borderRadius: '4px',
-                    border: '1px solid #ddd',
-                    width: '100%',
-                  }}
-                >
-                  {media.models.map((model, idx) => (
-                    <option key={idx} value={idx}>
-                      {model.filename}
-                    </option>
-                  ))}
-                </select>
-              )}
             </div>
           )}
 

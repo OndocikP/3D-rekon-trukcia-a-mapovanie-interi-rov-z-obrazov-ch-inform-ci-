@@ -11,6 +11,7 @@ from pathlib import Path
 import cv2
 from PIL import Image, ImageDraw, ImageFont
 import os
+import subprocess
 
 # Pokus sa importovať open3d pre point cloud
 try:
@@ -414,13 +415,13 @@ def generate_floor_plan_views(project_id, user_id, center, max_distance):
                 colors_sample,
                 direction,
                 center,
-                camera_distance=1,  # Kamera 10 jednotiek od centra - ešte bližšie
+                camera_distance=0.5,  # Kamera 10 jednotiek od centra - ešte bližšie
                 image_size=1024, 
-                fov=90
+                fov=120
             )
             
             # Vytvor obrázok (FAREBNÝ)
-            img = create_opencv_projection_image(proj_2d, colors_proj, image_size=1024, title=title)
+            img = create_opencv_projection_image(proj_2d, colors_proj, image_size=1024, title="")
             
             # Ulož obrázok
             output_file = output_dir / f"floor_plan_{direction}.png"
@@ -447,6 +448,130 @@ def generate_floor_plan_views(project_id, user_id, center, max_distance):
     print(f"   📁 Výstup: {output_dir}\n")
     
     return results, output_dir
+
+
+def generate_floor_plan_with_gemini(project_id, user_id, project_dir):
+    """
+    Volá Gemini AI na analýzu floor_plan_top.png a generuje floor plan s opisom
+    """
+    print(f"\n" + "="*70)
+    print(f"🤖 ANALÝZA FLOOR PLANU CEZ GEMINI AI")
+    print(f"="*70)
+    
+    # Cesta k floor plan obrázku
+    floor_plan_image = project_dir / "floor_plan_views" / "floor_plan_top.png"
+    
+    if not floor_plan_image.exists():
+        print(f"   ⚠️  Floor plan obrázok nenájdený: {floor_plan_image}")
+        return None
+    
+    # Prompt pre Gemini
+    prompt = """Ako architekt analyzuj túto fotografiu z vtačej perspektívy (FOV=120°) miestnosti a vytvor detailný 2D floor plan s:
+
+1. **Rozmerom miestnosti** (odhad na základe perspektívy)
+2. **Umiestnením objektov a nábytku** - presne zapíš ich pozície (severozápad, stred, juhovýchod, atď.)
+3. **Architektonickými prvkami** (dvere, okná, stĺpy, steny, atď.) a ich pozičnými popismi
+4. **Funkčnými zónami** miestnosti - identifikuj a opíš jednotlivé oblasti
+5. **Pokyny pre ďalšiu prácu** - čo by sa malo vylepšiť alebo čo nie je jasné
+
+Formát:
+- Použi jasný, štruktúrovaný text s bodmi a podrozsahmi
+- Každý objekt opíš s presnou pozíciou (napr. "Kancelársky stôl v strednej časti, pri okne na severnej strane")
+- Ak niečo nie je jasné, urob kvalifikovaný odhad a poznamenam si: "[ODHAD]"
+- Vytvor ASCII náčrt floor planu ak je to možné
+
+Cieľ: Mať kompletný technický opis miestnosti pre architektov a dizajnérov."""
+
+    print(f"   📸 Analyzujem: {floor_plan_image.name}")
+    print(f"   📝 Prompt: {prompt[:100]}...\n")
+    
+    try:
+        # Priprav parametre pre Gemini
+        params = {
+            "image_paths": [str(floor_plan_image)],
+            "prompt": prompt,
+            "output_path": str(project_dir / "floor_plan_analysis.json")
+        }
+        
+        # Volaj gemini_image_processor.py
+        print(f"   🔗 Volám gemini_image_processor.py...")
+        
+        cmd = [
+            "python",
+            str(Path(__file__).parent / "gemini_image_processor.py"),
+            json.dumps(params)
+        ]
+        
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, encoding='utf-8', errors='replace')
+        except Exception as e:
+            print(f"   ❌ Chyba pri spúšťaní Gemini procesu: {e}")
+            return None
+        
+        if result.returncode != 0:
+            print(f"   ❌ Chyba pri volaní Gemini:")
+            if "ResourceExhausted" in result.stderr or "quota" in result.stderr.lower():
+                print(f"   ⚠️  QUOTA EXHAUSTED - Free tier limity sú vyčerpané")
+                print(f"   💡 Riešenia:")
+                print(f"      1. Počkaj 60 sekúnd a skúsi znova")
+                print(f"      2. Prejdi na PAID plan na Google Cloud Console")
+                print(f"      3. Alebo skúsi neskôr, keď sa quota resetne")
+            else:
+                print(f"   {result.stderr[:500]}")
+            return None
+        
+        # Parsuj JSON výstup
+        try:
+            # Nájdi JSON v stdout
+            output_lines = result.stdout.split('\n')
+            json_start = None
+            for i, line in enumerate(output_lines):
+                if line.strip().startswith('{'):
+                    json_start = i
+                    break
+            
+            if json_start is None:
+                print(f"   ⚠️  Žiadny JSON výstup nenájdený v odpovedi Gemini")
+                print(f"   📝 Output (prvých 500 znakov): {result.stdout[:500]}")
+                return None
+            
+            json_str = '\n'.join(output_lines[json_start:])
+            gemini_result = json.loads(json_str)
+            
+            if gemini_result.get('status') == 'success':
+                print(f"   ✅ Gemini analýza úspešná!")
+                print(f"   📄 Výstup uložený: floor_plan_analysis.json")
+                
+                # Zobraz odpoveď
+                response = gemini_result.get('response', '')
+                if len(response) > 300:
+                    print(f"\n   📋 Odpoveď Gemini (prvých 300 znakov):")
+                    print(f"   {response[:300]}...")
+                else:
+                    print(f"\n   📋 Odpoveď Gemini:")
+                    print(f"   {response}")
+                
+                return gemini_result
+            else:
+                error = gemini_result.get('error', 'Unknown error')
+                print(f"   ⚠️  Gemini vrátilo chybu: {error}")
+                
+                if 'quota' in str(error).lower() or 'exhausted' in str(error).lower():
+                    print(f"   💡 API Quota bol vyčerpaný. Počkaj 60 sekúnd a skúsi znova.")
+                
+                return None
+        except json.JSONDecodeError as e:
+            print(f"   ⚠️  Chyba pri parsovaní JSON: {e}")
+            return None
+    
+    except subprocess.TimeoutExpired:
+        print(f"   ❌ Timeout: Gemini analýza trvala príliš dlho")
+        return None
+    except Exception as e:
+        print(f"   ❌ Chyba: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def main():
@@ -483,12 +608,21 @@ def main():
         )
         
         # Vytlač výsledky
-        print(f"📊 VÝSLEDKY:")
+        print(f"📊 VÝSLEDKY FLOOR PLAN VIEWS:")
         for direction, result in results.items():
             status = result.get('status', 'unknown')
             print(f"   {direction.upper()}: {status}")
         
+        # Volaj Gemini na analýzu floor plan obrázkov
+        project_dir = Path(__file__).parent / "projects" / user_id / project_id / "3Dmodel"
+        gemini_result = generate_floor_plan_with_gemini(project_id, user_id, project_dir)
+        
         print(f"\n✨ Floor plan generation completed!")
+        
+        if gemini_result:
+            print(f"✨ Gemini analysis completed!")
+        else:
+            print(f"⚠️  Gemini analysis skipped or failed")
         
     except Exception as e:
         print(f"\n❌ CHYBA: {e}")

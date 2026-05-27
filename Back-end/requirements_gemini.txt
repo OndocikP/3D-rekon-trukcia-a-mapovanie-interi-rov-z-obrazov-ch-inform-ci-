@@ -1,0 +1,9 @@
+# Google Generative AI (Gemini)
+google-generativeai>=0.3.0
+
+# Environment variables
+python-dotenv>=0.19.0
+
+# Už by malo byť v hlavnom requirements.txt, ale Just to be sure:
+pillow>=9.0.0
+numpy>=1.21.0

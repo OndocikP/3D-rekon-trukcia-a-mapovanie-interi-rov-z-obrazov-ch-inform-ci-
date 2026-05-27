@@ -776,6 +776,9 @@ async def get_project_media(project_id: str):
                                 "size": file.stat().st_size
                             })
                         # Hľadaj obrázky (PNG, JPG, JPEG, GIF, WEBP)
+                        # Prioritizuj floarplan obrázky
+                        floorplan_names = ['Mapa.png', 'floor_plan_top.png', 'podoris_floor_plan.png']
+                        
                         for pattern in ['*.png', '*.jpg', '*.jpeg', '*.gif', '*.webp']:
                             for file in media_dir.glob(pattern):
                                 images.append({
@@ -783,6 +786,17 @@ async def get_project_media(project_id: str):
                                     "type": "image",
                                     "size": file.stat().st_size
                                 })
+                        
+                        # Sortuuj aby floarplan bol prvý
+                        floored_images = []
+                        other_images = []
+                        for img in images:
+                            if img['filename'] in floorplan_names:
+                                floored_images.append(img)
+                            else:
+                                other_images.append(img)
+                        
+                        images = floored_images + other_images
                         break
         
         print(f"✅ Nájdené videá: {len(videos)}, modely: {len(models)}, obrázky: {len(images)}")

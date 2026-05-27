@@ -65,13 +65,6 @@ export default function MainScreen() {
         </Text>
       </View>
 
-      {/* HEADER */}
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>
-          Projects
-        </Text>
-      </View>
-
       {/* PROJECTS ZONE */}
       <View
         style={[
@@ -147,16 +140,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     letterSpacing: 0.2,
-  },
-
-  header: {
-    marginBottom: 20,
-  },
-
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    letterSpacing: 0.5,
   },
 
   projectsCard: {

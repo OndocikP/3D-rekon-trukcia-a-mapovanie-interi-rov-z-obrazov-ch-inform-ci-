@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 
 interface ThreeDViewerProps {
@@ -8,8 +8,16 @@ interface ThreeDViewerProps {
   height: number;
 }
 
+// Configure web worker path for development and production
+const getPlyWorkerPath = () => {
+  // In development, worker is at /src/workers/plyParser.worker.ts
+  // In production, it's built to dist
+  return new URL('../workers/plyParser.worker.ts', import.meta.url).href;
+};
+
 export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ modelUrl, token, width, height }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || typeof window === 'undefined') return;
@@ -94,6 +102,7 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ modelUrl, token, wid
       controls.autoRotateSpeed = 3;
       controls.enableZoom = true;
       
+      // Loading UI with progress
       const loadingDiv = document.createElement('div');
       loadingDiv.style.position = 'absolute';
       loadingDiv.style.top = '50%';
@@ -102,7 +111,14 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ modelUrl, token, wid
       loadingDiv.style.color = 'white';
       loadingDiv.style.textAlign = 'center';
       loadingDiv.style.zIndex = '10';
-      loadingDiv.innerHTML = '<div style="width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div><p>Načítavam 3D model...</p>';
+      loadingDiv.innerHTML = `
+        <div style="width: 60px; height: 60px; border: 4px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+        <p>Načítavam 3D model...</p>
+        <div style="width: 200px; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; margin: 10px auto; overflow: hidden;">
+          <div id="progressBar" style="width: 0%; height: 100%; background: #4fc3f7; transition: width 0.3s ease;"></div>
+        </div>
+        <p id="progressText" style="font-size: 12px; margin-top: 10px;">0%</p>
+      `;
       
       const styleSheet = document.createElement('style');
       styleSheet.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
@@ -110,174 +126,218 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ modelUrl, token, wid
       
       container.appendChild(loadingDiv);
       container.style.position = 'relative';
-      
-      const parsePLY = (data: ArrayBuffer) => {
-        try {
-          console.log('[3D VIEWER] Parsing PLY, size:', data.byteLength);
-          const view = new DataView(data);
-          const headerSize = Math.min(50000, data.byteLength);
-          const headerText = new TextDecoder().decode(new Uint8Array(data.slice(0, headerSize)));
-          
-          const lines = headerText.split('\n');
-          let headerEndLine = 0;
-          let vertexCount = 0;
-          let format = 'ascii';
-          const properties: any[] = [];
-          
-          for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (line.startsWith('format')) {
-              format = line.split(' ')[1];
-              console.log('[3D VIEWER] Format:', format);
-            } else if (line.startsWith('element vertex')) {
-              vertexCount = parseInt(line.split(' ')[2]);
-              console.log('[3D VIEWER] Vertex count:', vertexCount);
-            } else if (line.startsWith('property')) {
-              const parts = line.split(' ');
-              properties.push({ type: parts[1], name: parts[2] });
-            } else if (line === 'end_header') {
-              headerEndLine = i;
-              break;
-            }
-          }
-          
-          console.log('[3D VIEWER] Properties:', properties);
-          
-          let headerEndByte = 0;
-          for (let i = 0; i <= headerEndLine; i++) {
-            headerEndByte += lines[i].length + 1;
-          }
-          
-          const geometry = new THREE.BufferGeometry();
-          const positions = [];
-          const normals = [];
-          const colors = [];
-          
-          if (format === 'ascii') {
-            const dataLines = lines.slice(headerEndLine + 1);
-            console.log('[3D VIEWER] Data lines count:', dataLines.length);
-            let vertexCount_actual = 0;
-            for (const line of dataLines) {
-              if (!line.trim()) continue;
-              const parts = line.trim().split(/\s+/);
-              if (parts.length >= 3) {
-                vertexCount_actual++;
-                positions.push(parseFloat(parts[0]), parseFloat(parts[1]), parseFloat(parts[2]));
-                
-                // Čítaj normály ak existujú
-                let partIdx = 3;
-                if (partIdx < parts.length && properties.length > 3 && properties[3].name === 'nx') {
-                  normals.push(parseFloat(parts[partIdx]), parseFloat(parts[partIdx+1]), parseFloat(parts[partIdx+2]));
-                  partIdx += 3;
-                }
-                
-                // Čítaj farby ak existujú (red, green, blue)
-                let hasColor = false;
-                for (let i = 0; i < properties.length; i++) {
-                  if (properties[i].name === 'red' && partIdx < parts.length) {
-                    const r = parseInt(parts[partIdx]) / 255;
-                    const g = parseInt(parts[partIdx+1]) / 255;
-                    const b = parseInt(parts[partIdx+2]) / 255;
-                    colors.push(r, g, b);
-                    hasColor = true;
-                    break;
+
+      // Initialize web worker for PLY parsing
+      const initializeWorker = (): Promise<void> => {
+        return new Promise((resolve) => {
+          try {
+            const workerCode = `
+              self.onmessage = async (event) => {
+                const { buffer, vertexCount, properties } = event.data;
+                try {
+                  const decoder = new TextDecoder('utf-8');
+                  let headerEndByte = 0;
+                  const bufferView = new Uint8Array(buffer);
+                  
+                  for (let i = 0; i < Math.min(buffer.byteLength, 50000); i++) {
+                    if (bufferView[i] === 10) {
+                      const chunk = decoder.decode(bufferView.slice(Math.max(0, i-10), i+1));
+                      if (chunk.includes('end_header')) {
+                        headerEndByte = i + 1;
+                        break;
+                      }
+                    }
                   }
+                  
+                  const view = new DataView(buffer);
+                  const positions = new Float32Array(vertexCount * 3);
+                  const colors = new Float32Array(vertexCount * 3);
+                  
+                  let bytesPerVertex = 0;
+                  properties.forEach((prop) => {
+                    if (prop.type === 'float' || prop.type === 'int' || prop.type === 'uint') bytesPerVertex += 4;
+                    else if (prop.type === 'double') bytesPerVertex += 8;
+                    else if (prop.type === 'short' || prop.type === 'ushort') bytesPerVertex += 2;
+                    else bytesPerVertex += 1;
+                  });
+                  
+                  let offset = headerEndByte;
+                  let vertexIdx = 0;
+                  
+                  for (let v = 0; v < vertexCount && offset + bytesPerVertex <= buffer.byteLength; v++) {
+                    let propOffset = 0;
+                    const vertexValues = {};
+                    
+                    for (let p = 0; p < properties.length; p++) {
+                      const prop = properties[p];
+                      let val = 0;
+                      if (prop.type === 'float') {
+                        val = view.getFloat32(offset + propOffset, true);
+                        propOffset += 4;
+                      } else if (prop.type === 'double') {
+                        val = view.getFloat64(offset + propOffset, true);
+                        propOffset += 8;
+                      } else if (prop.type === 'int' || prop.type === 'uint') {
+                        val = view.getInt32(offset + propOffset, true);
+                        propOffset += 4;
+                      } else if (prop.type === 'uchar' || prop.type === 'uint8') {
+                        val = view.getUint8(offset + propOffset);
+                        propOffset += 1;
+                      }
+                      vertexValues[prop.name] = val;
+                    }
+                    
+                    positions[vertexIdx * 3] = vertexValues.x || 0;
+                    positions[vertexIdx * 3 + 1] = vertexValues.y || 0;
+                    positions[vertexIdx * 3 + 2] = vertexValues.z || 0;
+                    
+                    if (vertexValues.red !== undefined) {
+                      colors[vertexIdx * 3] = vertexValues.red / 255;
+                      colors[vertexIdx * 3 + 1] = vertexValues.green / 255;
+                      colors[vertexIdx * 3 + 2] = vertexValues.blue / 255;
+                    } else {
+                      colors[vertexIdx * 3] = 0.31;
+                      colors[vertexIdx * 3 + 1] = 0.765;
+                      colors[vertexIdx * 3 + 2] = 0.968;
+                    }
+                    
+                    offset += bytesPerVertex;
+                    vertexIdx++;
+                    
+                    if (vertexIdx % 100000 === 0) {
+                      self.postMessage({ type: 'progress', progress: vertexIdx / vertexCount });
+                    }
+                  }
+                  
+                  self.postMessage({
+                    type: 'complete',
+                    positions: positions.buffer,
+                    colors: colors.buffer,
+                    vertexCount: vertexIdx,
+                  }, [positions.buffer, colors.buffer]);
+                } catch (error) {
+                  self.postMessage({ type: 'error', error: String(error) });
                 }
-                if (!hasColor) {
-                  // Ak nema farby, pouzij default svetlomodra
-                  colors.push(0.31, 0.765, 0.966);
-                }
-              }
-            }
-            console.log('[3D VIEWER] Parsed vertices:', vertexCount_actual);
-          } else if (format === 'binary_little_endian' || format === 'binary_big_endian') {
-            const isLittleEndian = format === 'binary_little_endian';
-            let bytesPerVertex = 0;
-            const propIndices: any = {};
-            properties.forEach((prop) => {
-              propIndices[prop.name] = prop;
-              if (prop.type === 'float' || prop.type === 'int' || prop.type === 'uint') bytesPerVertex += 4;
-              else if (prop.type === 'double') bytesPerVertex += 8;
-              else if (prop.type === 'short' || prop.type === 'ushort') bytesPerVertex += 2;
-              else bytesPerVertex += 1;
-            });
+              };
+            `;
             
-            let offset = headerEndByte;
-            for (let v = 0; v < vertexCount && offset + bytesPerVertex <= data.byteLength; v++) {
-              let propOffset = 0;
-              const vertexValues: any = {};
-              
-              for (let p = 0; p < properties.length; p++) {
-                const prop = properties[p];
-                let val = 0;
-                if (prop.type === 'float') {
-                  val = view.getFloat32(offset + propOffset, isLittleEndian);
-                  propOffset += 4;
-                } else if (prop.type === 'double') {
-                  val = view.getFloat64(offset + propOffset, isLittleEndian);
-                  propOffset += 8;
-                } else if (prop.type === 'int') {
-                  val = view.getInt32(offset + propOffset, isLittleEndian);
-                  propOffset += 4;
-                } else if (prop.type === 'uchar' || prop.type === 'uint8') {
-                  val = view.getUint8(offset + propOffset);
-                  propOffset += 1;
-                }
-                vertexValues[prop.name] = val;
+            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            const worker = new Worker(URL.createObjectURL(blob));
+            workerRef.current = worker;
+            console.log('[3D VIEWER] ✅ Web Worker initialized');
+            resolve();
+          } catch (err) {
+            console.warn('[3D VIEWER] ⚠️  Web Worker initialization failed, will use sync parsing', err);
+            resolve();
+          }
+        });
+      };
+      
+      // @ts-ignore
+      const parsePLYWithWorker = async (data: ArrayBuffer): Promise<THREE.BufferGeometry | null> => {
+        return new Promise((resolve) => {
+          try {
+            // Parse header
+            const headerSize = Math.min(50000, data.byteLength);
+            const headerText = new TextDecoder().decode(new Uint8Array(data.slice(0, headerSize)));
+            const lines = headerText.split('\n');
+            
+            let vertexCount = 0;
+            const properties: any[] = [];
+            
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (trimmed.startsWith('element vertex')) {
+                vertexCount = parseInt(trimmed.split(' ')[2]);
+              } else if (trimmed.startsWith('property')) {
+                const parts = trimmed.split(' ');
+                properties.push({ type: parts[1], name: parts[2] });
+              } else if (trimmed === 'end_header') {
+                break;
               }
-              
-              if (propIndices['x']) {
-                positions.push(vertexValues['x'], vertexValues['y'], vertexValues['z']);
-              }
-              if (propIndices['nx'] && vertexValues['nx'] !== undefined) {
-                normals.push(vertexValues['nx'], vertexValues['ny'], vertexValues['nz']);
-              }
-              
-              // Čítaj farby z red, green, blue (ako unsigned char 0-255)
-              if (propIndices['red']) {
-                const r = (vertexValues['red'] / 255) || 0.5;
-                const g = (vertexValues['green'] / 255) || 0.5;
-                const b = (vertexValues['blue'] / 255) || 0.5;
-                colors.push(r, g, b);
-              } else {
-                // Default farba ak nema RGB
-                colors.push(0.31, 0.765, 0.966);
-              }
-              offset += bytesPerVertex;
             }
+            
+            console.log('[3D VIEWER] PLY: ' + vertexCount + ' vertices, ' + properties.length + ' properties');
+            
+            if (!workerRef.current) {
+              console.warn('[3D VIEWER] No worker available');
+              resolve(null);
+              return;
+            }
+            
+      // Setup worker message handler
+      const handleMessage = (event: MessageEvent) => {
+              const { type, progress, positions, colors, error } = event.data;
+              
+              if (type === 'progress') {
+                const percent = Math.round(progress * 100);
+                const bar = document.getElementById('progressBar');
+                const text = document.getElementById('progressText');
+                if (bar) bar.style.width = percent + '%';
+                if (text) text.textContent = percent + '%';
+              } else if (type === 'complete') {
+                console.log('[3D VIEWER] ✅ Worker parsing complete');
+                workerRef.current!.onmessage = null;
+                
+                // @ts-ignore
+                const geometry = new THREE.BufferGeometry();
+                const posArray = new Float32Array(positions);
+                const colorArray = new Float32Array(colors);
+                
+                // @ts-ignore
+                geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+                if (colorArray.length > 0) {
+                  // @ts-ignore
+                  geometry.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
+                }
+                geometry.computeVertexNormals();
+                resolve(geometry);
+              } else if (type === 'error') {
+                console.error('[3D VIEWER] Worker error:', error);
+                workerRef.current!.onmessage = null;
+                resolve(null);
+              }
+            };
+            
+            workerRef.current.onmessage = handleMessage;
+            workerRef.current.onerror = (err) => {
+              console.error('[3D VIEWER] Worker error event:', err);
+              workerRef.current!.onmessage = null;
+              resolve(null);
+            };
+            
+            // Send to worker
+            workerRef.current.postMessage(
+              { buffer: data, vertexCount, properties },
+              [data]
+            );
+            
+          } catch (err) {
+            console.error('[3D VIEWER] Error setting up worker parsing:', err);
+            resolve(null);
           }
-          
-          console.log('[3D VIEWER] Positions:', positions.length / 3, 'vertices');
-          console.log('[3D VIEWER] Colors:', colors.length / 3, 'vertices');
-          
-          if (positions.length === 0) return null;
-          
-          geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
-          
-          if (colors.length > 0) {
-            geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
-          }
-          
-          if (normals.length > 0) {
-            geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normals), 3));
-          } else {
-            geometry.computeVertexNormals();
-          }
-          
-          return geometry;
-        } catch (err) {
-          console.error('[3D VIEWER] Parse error:', err);
-          return null;
-        }
+        });
       };
       
       const loadPLY = async () => {
         try {
-          console.log('[3D VIEWER] Loading from:', modelUrl);
-          const response = await fetch(modelUrl, { headers: { 'Authorization': 'Bearer ' + token } });
+          console.log('[3D VIEWER] 📥 Starting PLY load from:', modelUrl);
+          
+          // Initialize worker
+          await initializeWorker();
+          
+          // Fetch model
+          const response = await fetch(modelUrl, { 
+            headers: { 'Authorization': 'Bearer ' + token }
+          });
           if (!response.ok) throw new Error('HTTP ' + response.status);
+          
           const buffer = await response.arrayBuffer();
-          const geometry = parsePLY(buffer);
+          const sizeInMB = (buffer.byteLength / 1024 / 1024).toFixed(2);
+          console.log('[3D VIEWER] ✅ Downloaded ' + sizeInMB + ' MB');
+          
+          // Parse with worker
+          const geometry = await parsePLYWithWorker(buffer);
           
           if (geometry) {
             const material = new THREE.PointsMaterial({ 
@@ -367,10 +427,12 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ modelUrl, token, wid
             controls.update();
             loadingDiv.style.display = 'none';
             animate();
+            console.log('[3D VIEWER] ✅ Scene ready!');
           } else {
             loadingDiv.innerHTML = '<p style="color: red;">Chyba pri parsovaní modelu</p>';
           }
         } catch (err) {
+          console.error('[3D VIEWER] ❌ Load error:', err);
           loadingDiv.innerHTML = '<p style="color: red;">Chyba: ' + (err instanceof Error ? err.message : 'unknown') + '</p>';
         }
       };
@@ -394,7 +456,12 @@ export const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ modelUrl, token, wid
       loadPLY();
       
       return () => {
+        console.log('[3D VIEWER] Cleaning up...');
         window.removeEventListener('resize', handleResize);
+        if (workerRef.current) {
+          workerRef.current.terminate();
+          workerRef.current = null;
+        }
         container.innerHTML = '';
         renderer.dispose();
       };
