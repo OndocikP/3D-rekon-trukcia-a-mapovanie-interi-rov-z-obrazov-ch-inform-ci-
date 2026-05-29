@@ -1294,19 +1294,21 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
           }}>
           {/* Video Buttons */}
           {hasVideos && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', backgroundColor: 'rgba(0,0,0,0.35)', padding: '8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.25)' }}>
               <button
                 onClick={() => setDisplayMode('video')}
                 style={{
                   padding: '8px 12px',
-                  backgroundColor: displayMode === 'video' ? '#2196F3' : '#ddd',
-                  color: displayMode === 'video' ? 'white' : 'black',
-                  border: 'none',
-                  borderRadius: '4px',
+                  backgroundColor: displayMode === 'video' ? '#2196F3' : '#f0f0f0',
+                  color: displayMode === 'video' ? 'white' : '#333',
+                  border: displayMode === 'video' ? 'none' : '2px solid #ddd',
+                  borderRadius: '8px',
                   cursor: 'pointer',
                   fontSize: '12px',
                   fontWeight: 'bold',
                   width: '100%',
+                  transition: 'all 0.2s ease',
+                  boxShadow: displayMode === 'video' ? '0 4px 12px rgba(33,150,243,0.3)' : 'none',
                 }}
               >
                 🎬 Video ({media.videos.length})
@@ -1317,11 +1319,13 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                   value={selectedVideoIndex}
                   onChange={(e) => setSelectedVideoIndex(parseInt(e.target.value))}
                   style={{
-                    padding: '6px 10px',
-                    fontSize: '12px',
-                    borderRadius: '4px',
-                    border: '1px solid #ddd',
+                    padding: '6px 8px',
+                    fontSize: '11px',
+                    borderRadius: '5px',
+                    border: '1px solid rgba(255,255,255,0.15)',
                     width: '100%',
+                    backgroundColor: 'rgba(255,255,255,0.08)',
+                    color: '#fff',
                   }}
                 >
                   {media.videos.map((video, idx) => (
@@ -1336,19 +1340,21 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
 
           {/* Model Buttons - NOW AT TOP */}
           {hasModels && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '12px', borderBottom: '1px solid #ddd' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', backgroundColor: 'rgba(0,0,0,0.35)', padding: '8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.25)' }}>
               <button
                 onClick={() => setDisplayMode('model')}
                 style={{
                   padding: '8px 12px',
-                  backgroundColor: displayMode === 'model' ? '#4CAF50' : '#ddd',
-                  color: displayMode === 'model' ? 'white' : 'black',
-                  border: 'none',
-                  borderRadius: '4px',
+                  backgroundColor: displayMode === 'model' ? '#4CAF50' : '#f0f0f0',
+                  color: displayMode === 'model' ? 'white' : '#333',
+                  border: displayMode === 'model' ? 'none' : '2px solid #ddd',
+                  borderRadius: '8px',
                   cursor: 'pointer',
                   fontSize: '12px',
                   fontWeight: 'bold',
                   width: '100%',
+                  transition: 'all 0.2s ease',
+                  boxShadow: displayMode === 'model' ? '0 4px 12px rgba(76,175,80,0.3)' : 'none',
                 }}
               >
                 🧊 Model PLY ({media.models.length})
@@ -1359,11 +1365,13 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                   value={selectedModelIndex}
                   onChange={(e) => setSelectedModelIndex(parseInt(e.target.value))}
                   style={{
-                    padding: '6px 10px',
-                    fontSize: '12px',
-                    borderRadius: '4px',
-                    border: '1px solid #ddd',
+                    padding: '6px 8px',
+                    fontSize: '11px',
+                    borderRadius: '5px',
+                    border: '1px solid rgba(255,255,255,0.15)',
                     width: '100%',
+                    backgroundColor: 'rgba(255,255,255,0.08)',
+                    color: '#fff',
                   }}
                 >
                   {media.models.map((model, idx) => (
@@ -1381,16 +1389,18 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
             <div style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: '8px',
-              paddingBottom: '12px',
-              borderBottom: '1px solid #ddd',
+              gap: '4px',
+              backgroundColor: 'rgba(0,0,0,0.35)',
+              padding: '8px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255,255,255,0.25)',
             }}>
               <label style={{
                 fontSize: '12px',
-                fontWeight: '600',
-                color: '#333',
+                fontWeight: '700',
+                color: '#1a1a1a',
               }}>
-                📍 Pixely:
+                📍 Point Size: {pixelSize.toFixed(1)}
               </label>
               <input
                 type="range"
@@ -1402,6 +1412,9 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                 style={{
                   width: '100%',
                   cursor: 'pointer',
+                  height: '6px',
+                  borderRadius: '3px',
+                  background: 'linear-gradient(to right, #4CAF50, #8BC34A)',
                 }}
               />
               <input
@@ -1418,10 +1431,13 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                 }}
                 style={{
                   width: '100%',
+                  boxSizing: 'border-box',
                   padding: '4px 6px',
-                  fontSize: '12px',
-                  borderRadius: '4px',
-                  border: '1px solid #ddd',
+                  fontSize: '11px',
+                  borderRadius: '5px',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  backgroundColor: 'rgba(255,255,255,0.08)',
+                  color: '#fff',
                 }}
               />
             </div>
@@ -1432,16 +1448,18 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
             <div style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: '8px',
-              paddingBottom: '12px',
-              borderBottom: '1px solid #ddd',
+              gap: '4px',
+              backgroundColor: 'rgba(0,0,0,0.35)',
+              padding: '8px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255,255,255,0.25)',
             }}>
               <label style={{
                 fontSize: '12px',
-                fontWeight: '600',
-                color: '#333',
+                fontWeight: '700',
+                color: '#1a1a1a',
               }}>
-                🔄 Rotation X:
+                🔄 Rotation X: {rotationAngle.toFixed(0)}°
               </label>
               <input
                 type="range"
@@ -1453,6 +1471,9 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                 style={{
                   width: '100%',
                   cursor: 'pointer',
+                  height: '6px',
+                  borderRadius: '3px',
+                  background: 'linear-gradient(to right, #FF9800, #FF6F00)',
                 }}
               />
               <input
@@ -1469,25 +1490,44 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                 }}
                 style={{
                   width: '100%',
+                  boxSizing: 'border-box',
                   padding: '4px 6px',
-                  fontSize: '12px',
-                  borderRadius: '4px',
-                  border: '1px solid #ddd',
+                  fontSize: '11px',
+                  borderRadius: '5px',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  backgroundColor: 'rgba(255,255,255,0.08)',
+                  color: '#fff',
                 }}
               />
-              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px' }}>
+                <button
+                  onClick={() => setRotationAngle(0)}
+                  style={{
+                    padding: '5px 6px',
+                    fontSize: '10px',
+                    fontWeight: '600',
+                    backgroundColor: rotationAngle === 0 ? '#FF6F00' : '#f0f0f0',
+                    color: rotationAngle === 0 ? 'white' : '#333',
+                    border: rotationAngle === 0 ? 'none' : '1px solid #ddd',
+                    borderRadius: '5px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  0°
+                </button>
                 <button
                   onClick={() => setRotationAngle(90)}
                   style={{
-                    flex: 1,
-                    minWidth: '50px',
-                    padding: '4px 8px',
-                    fontSize: '11px',
-                    backgroundColor: rotationAngle === 90 ? '#FF9800' : '#ddd',
-                    color: rotationAngle === 90 ? 'white' : 'black',
-                    border: 'none',
-                    borderRadius: '3px',
+                    padding: '5px 6px',
+                    fontSize: '10px',
+                    fontWeight: '600',
+                    backgroundColor: rotationAngle === 90 ? '#FF6F00' : '#f0f0f0',
+                    color: rotationAngle === 90 ? 'white' : '#333',
+                    border: rotationAngle === 90 ? 'none' : '1px solid #ddd',
+                    borderRadius: '5px',
                     cursor: 'pointer',
+                    transition: 'all 0.2s ease',
                   }}
                 >
                   90°
@@ -1495,15 +1535,15 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                 <button
                   onClick={() => setRotationAngle(180)}
                   style={{
-                    flex: 1,
-                    minWidth: '50px',
-                    padding: '4px 8px',
-                    fontSize: '11px',
-                    backgroundColor: rotationAngle === 180 ? '#FF9800' : '#ddd',
-                    color: rotationAngle === 180 ? 'white' : 'black',
-                    border: 'none',
-                    borderRadius: '3px',
+                    padding: '5px 6px',
+                    fontSize: '10px',
+                    fontWeight: '600',
+                    backgroundColor: rotationAngle === 180 ? '#FF6F00' : '#f0f0f0',
+                    color: rotationAngle === 180 ? 'white' : '#333',
+                    border: rotationAngle === 180 ? 'none' : '1px solid #ddd',
+                    borderRadius: '5px',
                     cursor: 'pointer',
+                    transition: 'all 0.2s ease',
                   }}
                 >
                   180°
@@ -1511,34 +1551,18 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                 <button
                   onClick={() => setRotationAngle(270)}
                   style={{
-                    flex: 1,
-                    minWidth: '50px',
-                    padding: '4px 8px',
-                    fontSize: '11px',
-                    backgroundColor: rotationAngle === 270 ? '#FF9800' : '#ddd',
-                    color: rotationAngle === 270 ? 'white' : 'black',
-                    border: 'none',
-                    borderRadius: '3px',
+                    padding: '5px 6px',
+                    fontSize: '10px',
+                    fontWeight: '600',
+                    backgroundColor: rotationAngle === 270 ? '#FF6F00' : '#f0f0f0',
+                    color: rotationAngle === 270 ? 'white' : '#333',
+                    border: rotationAngle === 270 ? 'none' : '1px solid #ddd',
+                    borderRadius: '5px',
                     cursor: 'pointer',
+                    transition: 'all 0.2s ease',
                   }}
                 >
                   270°
-                </button>
-                <button
-                  onClick={() => setRotationAngle(0)}
-                  style={{
-                    flex: 1,
-                    minWidth: '50px',
-                    padding: '4px 8px',
-                    fontSize: '11px',
-                    backgroundColor: rotationAngle === 0 ? '#FF9800' : '#ddd',
-                    color: rotationAngle === 0 ? 'white' : 'black',
-                    border: 'none',
-                    borderRadius: '3px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  0°
                 </button>
               </div>
             </div>
@@ -1549,60 +1573,80 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
             <div style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: '8px',
-              paddingBottom: '12px',
-              borderBottom: '1px solid #ddd',
+              gap: '4px',
+              backgroundColor: 'rgba(0,0,0,0.35)',
+              padding: '8px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255,255,255,0.25)',
             }}>
               <label style={{
-                fontSize: '12px',
-                fontWeight: '600',
-                color: '#333',
+                fontSize: '11px',
+                fontWeight: '700',
+                color: '#1a1a1a',
               }}>
                 ⊙ Center (X, Y, Z):
               </label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="number"
-                  value={centerX.toFixed(2)}
-                  onChange={(e) => setCenterX(parseFloat(e.target.value))}
-                  step="0.1"
-                  style={{
-                    width: '70px',
-                    padding: '4px 6px',
-                    fontSize: '11px',
-                    borderRadius: '3px',
-                    border: '1px solid #ddd',
-                  }}
-                  placeholder="X"
-                />
-                <input
-                  type="number"
-                  value={centerY.toFixed(2)}
-                  onChange={(e) => setCenterY(parseFloat(e.target.value))}
-                  step="0.1"
-                  style={{
-                    width: '70px',
-                    padding: '4px 6px',
-                    fontSize: '11px',
-                    borderRadius: '3px',
-                    border: '1px solid #ddd',
-                  }}
-                  placeholder="Y"
-                />
-                <input
-                  type="number"
-                  value={centerZ.toFixed(2)}
-                  onChange={(e) => setCenterZ(parseFloat(e.target.value))}
-                  step="0.1"
-                  style={{
-                    width: '70px',
-                    padding: '4px 6px',
-                    fontSize: '11px',
-                    borderRadius: '3px',
-                    border: '1px solid #ddd',
-                  }}
-                  placeholder="Z"
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px' }}>
+                <div>
+                  <label style={{ fontSize: '10px', color: '#666', fontWeight: '600' }}>X</label>
+                  <input
+                    type="number"
+                    value={centerX.toFixed(2)}
+                    onChange={(e) => setCenterX(parseFloat(e.target.value))}
+                    step="0.1"
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      padding: '3px 5px',
+                      fontSize: '10px',
+                      borderRadius: '5px',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      backgroundColor: 'rgba(255,255,255,0.08)',
+                      color: '#fff',
+                      marginTop: '2px',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '10px', color: '#666', fontWeight: '600' }}>Y</label>
+                  <input
+                    type="number"
+                    value={centerY.toFixed(2)}
+                    onChange={(e) => setCenterY(parseFloat(e.target.value))}
+                    step="0.1"
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      padding: '3px 5px',
+                      fontSize: '10px',
+                      borderRadius: '5px',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      backgroundColor: 'rgba(255,255,255,0.08)',
+                      color: '#fff',
+                      marginTop: '2px',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '10px', color: '#666', fontWeight: '600' }}>Z</label>
+                  <input
+                    type="number"
+                    value={centerZ.toFixed(2)}
+                    onChange={(e) => setCenterZ(parseFloat(e.target.value))}
+                    step="0.1"
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      padding: '3px 5px',
+                      fontSize: '10px',
+                      borderRadius: '5px',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      backgroundColor: 'rgba(255,255,255,0.08)',
+                      color: '#fff',
+                      marginTop: '2px',
+                    }}
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -1612,19 +1656,20 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
             <div style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: '8px',
-              paddingBottom: '12px',
-              borderBottom: '1px solid #ddd',
+              gap: '4px',
+              backgroundColor: 'rgba(0,0,0,0.35)',
+              padding: '8px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255,255,255,0.25)',
             }}>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <label style={{
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  color: '#333',
-                  whiteSpace: 'nowrap',
-                }}>
-                  📏 Distance:
-                </label>
+              <label style={{
+                fontSize: '11px',
+                fontWeight: '700',
+                color: '#1a1a1a',
+              }}>
+                📏 Distance: {maxDistance.toFixed(2)}
+              </label>
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                 <input
                   type="number"
                   min="0"
@@ -1638,27 +1683,32 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
                   }}
                   style={{
                     flex: 1,
+                    boxSizing: 'border-box',
                     padding: '4px 6px',
-                    fontSize: '12px',
-                    borderRadius: '4px',
-                    border: '1px solid #ddd',
+                    fontSize: '11px',
+                    borderRadius: '5px',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    backgroundColor: 'rgba(255,255,255,0.08)',
+                    color: '#fff',
                   }}
                 />
                 <button
                   onClick={() => setShowDistance(!showDistance)}
                   style={{
-                    padding: '4px 10px',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    backgroundColor: showDistance ? '#4CAF50' : '#ccc',
+                    padding: '4px 8px',
+                    fontSize: '9px',
+                    fontWeight: '700',
+                    backgroundColor: showDistance ? '#4CAF50' : '#f0f0f0',
                     color: showDistance ? 'white' : '#666',
-                    border: 'none',
+                    border: showDistance ? 'none' : '1px solid #ccc',
                     borderRadius: '4px',
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
+                    transition: 'all 0.2s ease',
+                    boxShadow: showDistance ? '0 2px 8px rgba(76,175,80,0.2)' : 'none',
                   }}
                 >
-                  {showDistance ? '✓ Show' : '✗ Hide'}
+                  {showDistance ? '✓ OK' : '✗ OFF'}
                 </button>
               </div>
             </div>
@@ -1666,43 +1716,44 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ projectId, token, widt
 
           {/* Center Visibility & Info Toggle */}
           {displayMode === 'model' && hasModels && (
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
               <button
                 onClick={() => setShowCenter(!showCenter)}
                 style={{
-                  flex: 1,
-                  minWidth: '80px',
-                  padding: '6px 8px',
-                  fontSize: '12px',
-                  backgroundColor: showCenter ? '#FF6666' : '#ddd',
-                  color: showCenter ? 'white' : 'black',
-                  border: 'none',
-                  borderRadius: '3px',
+                  padding: '6px 10px',
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  backgroundColor: showCenter ? '#FF6666' : '#f0f0f0',
+                  color: showCenter ? 'white' : '#333',
+                  border: showCenter ? 'none' : '1px solid #ccc',
+                  borderRadius: '5px',
                   cursor: 'pointer',
-                  fontWeight: '500',
+                  transition: 'all 0.2s ease',
+                  boxShadow: showCenter ? '0 2px 8px rgba(255,102,102,0.2)' : 'none',
                 }}
               >
-                ⊙ Stred
+                ⊙ Center
               </button>
               <button
                 onClick={() => setShowControlsInfo(!showControlsInfo)}
                 style={{
-                  flex: 1,
-                  minWidth: '80px',
-                  padding: '6px 8px',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  backgroundColor: showControlsInfo ? '#2196F3' : '#ddd',
-                  color: showControlsInfo ? 'white' : 'black',
-                  border: 'none',
-                  borderRadius: '3px',
+                  padding: '6px 10px',
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  backgroundColor: showControlsInfo ? '#2196F3' : '#f0f0f0',
+                  color: showControlsInfo ? 'white' : '#333',
+                  border: showControlsInfo ? 'none' : '1px solid #ccc',
+                  borderRadius: '5px',
                   cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: showControlsInfo ? '0 2px 8px rgba(33,150,243,0.2)' : 'none',
                 }}
               >
-                ⓘ Help
+                ℹ️ Info
               </button>
             </div>
           )}
+
         </div>
         {/* END LEFT PANEL */}
 

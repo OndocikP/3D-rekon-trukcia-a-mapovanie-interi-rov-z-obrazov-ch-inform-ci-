@@ -269,7 +269,7 @@ export default function ProjectDetailScreen() {
                 projectId={id || ''}
                 token={token || ''}
                 width={screenWidth - 48}
-                height={screenHeight * 0.55}
+                height={screenHeight * 0.605}
               />
             </View>
           ) : media?.models && media.models.length > 0 ? (
@@ -278,7 +278,7 @@ export default function ProjectDetailScreen() {
                 projectId={id || ''}
                 token={token || ''}
                 width={screenWidth - 48}
-                height={screenHeight * 0.55}
+                height={screenHeight * 0.605}
               />
             </View>
           ) : media?.images && media.images.length > 0 ? (
@@ -287,9 +287,9 @@ export default function ProjectDetailScreen() {
                 source={{ uri: `${API_BASE_URL}/api/projects/${id}/media/image/${media.images[0].filename}` }}
                 style={[
                   styles.roomImage,
-                  { width: '100%', height: screenHeight * 0.55 }
+                  { width: '100%', height: screenHeight * 0.445 }
                 ]}
-                resizeMode="cover"
+                resizeMode="contain"
               />
             </View>
           ) : (
@@ -298,9 +298,9 @@ export default function ProjectDetailScreen() {
                 source={require('../../src/assets/sample-room.png')}
                 style={[
                   styles.roomImage,
-                  { width: '100%', height: screenHeight * 0.55 }
+                  { width: '100%', height: screenHeight * 0.445 }
                 ]}
-                resizeMode="cover"
+                resizeMode="contain"
               />
             </View>
           )}
@@ -360,14 +360,6 @@ export default function ProjectDetailScreen() {
               disabled={downloading || !media?.has_media}
               onPress={handleDownload}
               style={{ flex: 0.6, minWidth: 65 }}
-            />
-            <AppButton
-              icon="image"
-              title="Floor Plan"
-              variant="secondary"
-              disabled={generatingFloorPlan || !media?.has_media}
-              onPress={handleGenerateFloorPlan}
-              style={{ flex: 0.7, minWidth: 75 }}
             />
             <AppButton
               icon="home"

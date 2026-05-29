@@ -109,6 +109,17 @@ def get_oldest_pending_project():
         
         if response.data and len(response.data) > 0:
             return response.data[0]
+
+        response = supabase.table("projects") \
+            .select("*") \
+            .eq("status", "plan") \
+            .lt("try", 3) \
+            .order("created_at", desc=False) \
+            .limit(1) \
+            .execute()
+        
+        if response.data and len(response.data) > 0:
+            return response.data[0]
         
         return None
             

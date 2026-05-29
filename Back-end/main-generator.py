@@ -5,6 +5,8 @@ Nájdi najstarší projekt so statusom 'pending' v Supabase
 
 import os
 import time
+import json
+import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -63,6 +65,155 @@ def format_detected_objects(objects_dict: dict, min_count: int = 2) -> str:
             formatted.append(f"{obj_name} 1-{count}")
     
     return ", ".join(formatted)
+
+
+def calculate_point_cloud_center(ply_file):
+    """
+    Vypočíta centroid (stred hmoty) z PLY súboru
+    Centroid sa počíta ako priemerná pozícia všetkých bodov
+    
+    Returns:
+        tuple: (center_x, center_y, center_z) alebo None ak chyba
+    """
+    print(f"\n   📊 Vypočítavam centroid z point cloudu...")
+    
+    try:
+        points = []
+        
+        with open(ply_file, 'r', encoding='latin-1', errors='ignore') as f:
+            # Čítaj header
+            header_done = False
+            num_vertices = 0
+            
+            while not header_done:
+                line = f.readline().strip()
+                if line.startswith('element vertex'):
+                    num_vertices = int(line.split()[-1])
+                elif line == 'end_header':
+                    header_done = True
+            
+            # Čítaj body
+            for _ in range(num_vertices):
+                parts = f.readline().split()
+                if len(parts) >= 3:
+                    try:
+                        x, y, z = float(parts[0]), float(parts[1]), float(parts[2])
+                        points.append([x, y, z])
+                    except (ValueError, IndexError):
+                        continue
+        
+        if not points:
+            print(f"   ⚠️  Žiadne body nájdené v PLY súbore")
+            return None
+        
+        # Vypočítaj centroid (priemer všetkých bodov)
+        import numpy as np
+        points_array = np.array(points)
+        center = np.mean(points_array, axis=0)
+        
+        print(f"   ✅ Centroid vypočítaný: ({center[0]:.2f}, {center[1]:.2f}, {center[2]:.2f})")
+        print(f"   📊 Počet bodov v cloud: {len(points)}")
+        
+        return tuple(center)
+    
+    except Exception as e:
+        print(f"   ❌ Chyba pri výpočte centra: {e}")
+        return None
+
+
+def run_floor_plan_generator(project_id, user_id, project_path):
+    """
+    Spustí floarPlanGenerator.py na vytvorenie floor plan views
+    
+    Args:
+        project_id: ID projektu
+        user_id: ID vlastníka projektu
+        project_path: Cesta k projektu
+    
+    Returns:
+        bool: True ak úspešne, False ak chyba
+    """
+    print(f"\n🎨 SPÚŠŤAM FLOOR PLAN GENERATOR...")
+    
+    try:
+        # Cesta k point cloud súboru
+        ply_file = Path(project_path) / "3Dmodel" / "point_cloud.ply"
+        floor_plan_dir = Path(project_path) / "3Dmodel" / "floor_plan_views"
+        
+        # Skontroluj či floor_plan_views už existuje
+        if floor_plan_dir.exists():
+            print(f"   ℹ️  Floor plan views už existujú: {floor_plan_dir}")
+            return True
+        
+        # Skontroluj či point_cloud.ply existuje
+        if not ply_file.exists():
+            print(f"   ❌ Point cloud súbor nenájdený: {ply_file}")
+            return False
+        
+        # Vypočítaj centroid z point cloudu
+        center = calculate_point_cloud_center(str(ply_file))
+        if center is None:
+            print(f"   ⚠️  Nepodarilo sa vypočítať centroid, používam default (0, 0, 0)")
+            center = (0, 0, 0)
+        
+        # Priprav JSON parametre
+        params = {
+            "project_id": project_id,
+            "user_id": user_id,
+            "center_x": float(center[0]),
+            "center_y": float(center[1]),
+            "center_z": float(center[2]),
+            "max_distance": 100  # Default maximálna vzdialenosť
+        }
+        
+        # Spustí floarPlanGenerator.py
+        print(f"   🔗 Spúšťam floarPlanGenerator.py...")
+        print(f"      Parametre: center=({center[0]:.2f}, {center[1]:.2f}, {center[2]:.2f}), max_distance=100")
+        
+        cmd = [
+            "python",
+            str(Path(__file__).parent / "floarPlanGenerator.py"),
+            json.dumps(params)
+        ]
+        
+        # Spustí proces s UTF-8 kódovaním
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            timeout=600,  # 10 minút timeout
+            env=env
+        )
+        
+        # Skontroluj výstup
+        if result.returncode != 0:
+            print(f"   ❌ Chyba pri spustení floarPlanGenerator.py:")
+            print(f"   {result.stderr[:500]}")
+            return False
+        
+        print(f"   ✅ floarPlanGenerator.py skončil úspešne")
+        
+        # Zobraz výstup
+        if result.stdout:
+            output_lines = result.stdout.strip().split('\n')
+            for line in output_lines[-10:]:  # Posledných 10 riadkov
+                print(f"   {line}")
+        
+        return True
+    
+    except subprocess.TimeoutExpired:
+        print(f"   ⏱️  Timeout: floarPlanGenerator trvala príliš dlho (>10 min)")
+        return False
+    except Exception as e:
+        print(f"   ❌ Chyba: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 def Yolo(image_files):
@@ -224,7 +375,7 @@ def spracuj_projekt():
                     print(f"   Objects: {objects_new}\n")
                 else:
                     print(f"❌ Chyba pri ukladaní do Supabase\n")
-            if project.get('status') != "generated":
+            if project.get('status') != "generated" and project.get('status') != "podoris":
                 print("🚀 Spúšťam 3D Generovanie...\n")
                 
                 # Run Nerfstudio
@@ -234,9 +385,18 @@ def spracuj_projekt():
                 if success:
                     print(f"✅ Úspešné vytvorenie 3D modelu")
                     #update_project_status(project_id, "Generated")
+
+                    # Spustí floor plan generator
+                    run_floor_plan_generator(project_id, owner_id, project_path)
                 else:
                     print(f"❌ Chyba pri vytváraní 3D modelu\n")
                     increment_project_try(project_id, project.get('try') or 0)
+
+            elif project.get('status') == "generated":
+                run_floor_plan_generator(project_id, owner_id, project_path)
+
+
+            
 
 
             

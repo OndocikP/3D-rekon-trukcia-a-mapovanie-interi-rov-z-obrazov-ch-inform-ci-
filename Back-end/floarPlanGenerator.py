@@ -12,6 +12,16 @@ import cv2
 from PIL import Image, ImageDraw, ImageFont
 import os
 import subprocess
+import traceback
+
+# Nastav UTF-8 k\u00f3dovanie pre console v\u00fdstup (fix pre Windows)
+try:
+    if sys.stdout.encoding != 'utf-8':
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    if sys.stderr.encoding != 'utf-8':
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    pass
 
 # Pokus sa importovať open3d pre point cloud
 try:
@@ -110,21 +120,21 @@ def project_points_perspective(points, colors, direction, center, camera_distanc
     
     # Definuj view_dir a up_vector podľa smeru
     view_dir_map = {
-        'top': np.array([0, 0, -1]),
-        'bottom': np.array([0, 0, 1]),
-        'left': np.array([-1, 0, 0]),
-        'right': np.array([1, 0, 0]),
-        'front': np.array([0, -1, 0]),
-        'back': np.array([0, 1, 0]),
+        'top': np.array([0, 0, 1]),
+        'bottom': np.array([0, 0, -1]),
+        'left': np.array([1, 0, 0]),
+        'right': np.array([-1, 0, 0]),
+        'front': np.array([0, 1, 0]),
+        'back': np.array([0, -1, 0]),
     }
     
     up_vector_map = {
-        'top': np.array([0, -1, 0]),
-        'bottom': np.array([0, 1, 0]),
-        'left': np.array([0, 0, 1]),
-        'right': np.array([0, 0, 1]),
-        'front': np.array([0, 0, 1]),
-        'back': np.array([0, 0, 1]),
+        'top': np.array([0, 1, 0]),
+        'bottom': np.array([0, -1, 0]),
+        'left': np.array([0, 0, -1]),
+        'right': np.array([0, 0, -1]),
+        'front': np.array([0, 0, -1]),
+        'back': np.array([0, 0, -1]),
     }
     
     if direction not in view_dir_map:
@@ -196,21 +206,21 @@ def project_points_orthogonal(points, colors, direction, center, image_size=1024
     
     # Definuj view_dir a up_vector podľa smeru (TOTOŽNÉ s create_camera_frustum!)
     view_dir_map = {
-        'top': np.array([0, 0, -1]),
-        'bottom': np.array([0, 0, 1]),
-        'left': np.array([-1, 0, 0]),
-        'right': np.array([1, 0, 0]),
-        'front': np.array([0, -1, 0]),
-        'back': np.array([0, 1, 0]),
+        'top': np.array([0, 0, 1]),
+        'bottom': np.array([0, 0, -1]),
+        'left': np.array([1, 0, 0]),
+        'right': np.array([-1, 0, 0]),
+        'front': np.array([0, 1, 0]),
+        'back': np.array([0, -1, 0]),
     }
     
     up_vector_map = {
-        'top': np.array([0, -1, 0]),
-        'bottom': np.array([0, 1, 0]),
-        'left': np.array([0, 0, 1]),
-        'right': np.array([0, 0, 1]),
-        'front': np.array([0, 0, 1]),
-        'back': np.array([0, 0, 1]),
+        'top': np.array([0, 1, 0]),
+        'bottom': np.array([0, -1, 0]),
+        'left': np.array([0, 0, -1]),
+        'right': np.array([0, 0, -1]),
+        'front': np.array([0, 0, -1]),
+        'back': np.array([0, 0, -1]),
     }
     
     if direction not in view_dir_map:
@@ -417,7 +427,7 @@ def generate_floor_plan_views(project_id, user_id, center, max_distance):
                 center,
                 camera_distance=0.5,  # Kamera 10 jednotiek od centra - ešte bližšie
                 image_size=1024, 
-                fov=120
+                fov=100
             )
             
             # Vytvor obrázok (FAREBNÝ)

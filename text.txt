@@ -1,6 +1,7 @@
 
 
 cd Front-and
+cls
 npm install
 npx expo start --port 8085
 
